@@ -1,0 +1,220 @@
+#!/usr/bin/python
+
+import os
+import sys
+import grp
+import posix1e
+
+class StackedPermHandler(object):
+	def __init__(self, *args, **kwargs):
+		self.handlers = []
+
+	def append(self, handler):
+		self.handlers.append(handler)
+
+	def assert_file_perms(self, path):
+		for handler in self.handlers:
+			handler.assert_file_perms(path)
+
+	def assert_dir_perms(self, path):
+		for handler in self.handlers:
+			handler.assert_dir_perms(path)
+
+class AssertGroupOwner(object):
+	"""
+	Makes sure that all files and directories are owned by a specified
+	group.
+	"""
+	def __init__(self, *args, **kwargs):
+		self.gid = grp.getgrnam(kwargs['owner']).gr_gid
+
+	def assert_group_owner(self, path):
+		si = os.stat(path)
+		if si.st_gid != self.gid:
+			print "Changing gid of %s from %d to %d" % (path, si.st_gid,
+					self.gid)
+			os.chown(path, -1, self.gid)
+
+	assert_file_perms = assert_group_owner
+	assert_dir_perms = assert_group_owner
+
+class AssertReadWriteGroups(object):
+	"""
+	Makes sure that the owning group has write access and the specified rgroup
+	has read access (as well as directory listing permissions).
+
+	Apropriately set the default ACLs on the directories.
+	"""
+	def __init__(self, *args, **kwargs):
+		self.rgid = grp.getgrnam(kwargs['rgroup']).gr_gid
+
+	def assert_acl_file_entries(self, curr_acl):
+		changed = False
+		rgroup_entry = None
+
+		for entry in curr_acl:
+			# Ignore these entries.
+			if entry.tag_type == posix1e.ACL_USER_OBJ \
+					or entry.tag_type == posix1e.ACL_MASK:
+				continue
+
+			# Group owner should be able to read and write.
+			if entry.tag_type == posix1e.ACL_GROUP_OBJ:
+				if not entry.permset.test(posix1e.ACL_READ):
+					entry.permset.add(posix1e.ACL_READ)
+					changed = True
+				if not entry.permset.test(posix1e.ACL_WRITE):
+					entry.permset.add(posix1e.ACL_WRITE)
+					changed = True
+				continue
+
+			# Others should not be able to do anything.
+			if entry.tag_type == posix1e.ACL_OTHER:
+				if entry.permset.test(posix1e.ACL_READ):
+					entry.permset.delete(posix1e.ACL_READ)
+					changed = True
+				if entry.permset.test(posix1e.ACL_WRITE):
+					entry.permset.delete(posix1e.ACL_WRITE)
+					changed = True
+				if entry.permset.test(posix1e.ACL_EXECUTE):
+					entry.permset.delete(posix1e.ACL_EXECUTE)
+					changed = True
+				continue
+
+			# Remember the rgroup entry ... (see below)
+			if entry.tag_type == posix1e.ACL_GROUP \
+					and entry.qualifier == self.rgid:
+				rgroup_entry = entry
+				continue
+
+			# All other entries shall be removed.
+			print "Deleting %s" % entry
+			curr_acl.delete_entry(entry)
+			del entry
+
+		# Rgroup should be able to read but not write.
+		if rgroup_entry is None:
+			rgroup_entry = posix1e.Entry(curr_acl)
+			rgroup_entry.tag_type = posix1e.ACL_GROUP
+			rgroup_entry.qualifier = self.rgid
+			changed = True
+		if not rgroup_entry.permset.test(posix1e.ACL_READ):
+			rgroup_entry.permset.add(posix1e.ACL_READ)
+			changed = True
+		if rgroup_entry.permset.test(posix1e.ACL_WRITE):
+			rgroup_entry.permset.delete(posix1e.ACL_WRITE)
+			changed = True
+
+		if changed:
+			curr_acl.calc_mask()
+		return changed
+
+	def assert_acl_dir_entries(self, curr_acl):
+		changed = False
+		rgroup_entry = None
+
+		for entry in curr_acl:
+			# Group owner should be able to execute.
+			if entry.tag_type == posix1e.ACL_GROUP_OBJ:
+				if not entry.permset.test(posix1e.ACL_EXECUTE):
+					entry.permset.add(posix1e.ACL_EXECUTE)
+					changed = True
+				continue
+
+			# Rgroup should be able to execute.
+			if entry.tag_type == posix1e.ACL_GROUP \
+					and entry.qualifier == self.rgid:
+				if not entry.permset.test(posix1e.ACL_EXECUTE):
+					entry.permset.add(posix1e.ACL_EXECUTE)
+					changed = True
+				continue
+			del entry
+
+		if changed:
+			curr_acl.calc_mask()
+		return changed
+
+	def assert_base_dir_perms(self, curr_acl):
+		if curr_acl.valid():
+			return False
+		entry = posix1e.Entry(curr_acl)
+		entry.tag_type = posix1e.ACL_USER_OBJ
+		entry.permset.add(posix1e.ACL_READ)
+		entry.permset.add(posix1e.ACL_WRITE)
+		entry.permset.add(posix1e.ACL_EXECUTE)
+
+		entry = posix1e.Entry(curr_acl)
+		entry.tag_type = posix1e.ACL_GROUP_OBJ
+
+		entry = posix1e.Entry(curr_acl)
+		entry.tag_type = posix1e.ACL_OTHER
+		return True
+
+	def assert_file_perms(self, path):
+		curr_acl = posix1e.ACL(file = path)
+		if self.assert_acl_file_entries(curr_acl) \
+			| self.assert_acl_dir_entries(curr_acl):
+			print "updated ACL for %s" % path
+			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
+
+	def assert_dir_perms(self, path):
+		curr_acl = posix1e.ACL(file = path)
+		if self.assert_acl_file_entries(curr_acl) \
+				| self.assert_acl_dir_entries(curr_acl):
+			print "updated ACL for %s" % path
+			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
+
+		curr_acl = posix1e.ACL(filedef = path)
+		if self.assert_base_dir_perms(curr_acl) \
+				| self.assert_acl_file_entries(curr_acl) \
+				| self.assert_acl_dir_entries(curr_acl):
+			print "updated default ACL for %s (%d)" % (path, curr_acl.valid())
+			print curr_acl
+			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
+
+class GroupAccessableTree(object):
+	def __init__(self, *args, **kwargs):
+		self.tree_base = kwargs['tree_base']
+		self.ignore_dirs = kwargs['ignore_dirs']
+
+	def is_path_ignored(self, path):
+		"""Determines whether the passed path matches an ignored directory."""
+		for idir in self.ignore_dirs:
+			ipath = os.path.join(self.tree_base, idir)
+			if  ipath == path:
+				return True
+		return False
+
+	def filter_ignored_paths(self, root_path, names):
+		"""Filters out the ignored paths."""
+		return filter(
+				lambda name: not self.is_path_ignored(
+						os.path.join(root_path, name)),
+				names)
+
+	def apply(self, perm_handler):
+		for root, dirs, files in os.walk(self.tree_base):
+			dirs = self.filter_ignored_paths(root, dirs)
+			files = self.filter_ignored_paths(root, files)
+
+			for name in files:
+				path = os.path.join(root, name)
+				perm_handler.assert_file_perms(path)
+
+			for name in dirs:
+				path = os.path.join(root, name)
+				perm_handler.assert_dir_perms(path)
+
+if __name__ == '__main__':
+	gat = GroupAccessableTree(tree_base = './testtree',
+			ignore_dirs = ['bla', 'oink/foo'])
+
+	sph = StackedPermHandler()
+	sph.append(AssertGroupOwner(owner = 'cdrom'))
+	sph.append(AssertReadWriteGroups(rgroup = 'src'))
+
+	gat.apply(sph)
+
+	sys.exit(0)
+
+# vim: set ts=4:
