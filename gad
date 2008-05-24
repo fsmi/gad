@@ -3,6 +3,7 @@
 import os
 import sys
 import grp
+import stat
 import posix1e
 
 
@@ -73,6 +74,20 @@ class AssertGroupOwner(object):
 
 	assert_file_perms = assert_group_owner
 	assert_dir_perms = assert_group_owner
+
+
+class AssertDirStickyGroup(object):
+	"""
+	Makes sure that all directories have the group sticky bit set.
+	"""
+	def assert_file_perms(self, path):
+		pass
+
+	def assert_dir_perms(self, path):
+		si = os.stat(path)
+		if not (stat.S_IMODE(si.st_mode) & stat.S_ISGID):
+			print "Adding sticky gid to dir %s" % path
+			os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
 
 class AssertReadWriteGroups(object):
@@ -213,6 +228,7 @@ class AssertReadWriteGroups(object):
 def make_group_accessable(tree_base, wgroup, rgroup, ignore_dirs = []):
 	sph = StackedPermHandler()
 	sph.append(AssertGroupOwner(owner = wgroup))
+	sph.append(AssertDirStickyGroup())
 	sph.append(AssertReadWriteGroups(rgroup = rgroup))
 
 	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs)
