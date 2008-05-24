@@ -5,6 +5,41 @@ import sys
 import grp
 import posix1e
 
+
+class TreeModifier(object):
+	def __init__(self, *args, **kwargs):
+		self.tree_base = kwargs['tree_base']
+		self.ignore_dirs = kwargs['ignore_dirs']
+
+	def is_path_ignored(self, path):
+		"""Determines whether the passed path matches an ignored directory."""
+		for idir in self.ignore_dirs:
+			ipath = os.path.join(self.tree_base, idir)
+			if ipath == path:
+				return True
+		return False
+
+	def filter_ignored_paths(self, root_path, names):
+		"""Filters out the ignored paths."""
+		return filter(
+				lambda name: not self.is_path_ignored(
+						os.path.join(root_path, name)),
+				names)
+
+	def apply(self, perm_handler):
+		for root, dirs, files in os.walk(self.tree_base):
+			dirs = self.filter_ignored_paths(root, dirs)
+			files = self.filter_ignored_paths(root, files)
+
+			for name in files:
+				path = os.path.join(root, name)
+				perm_handler.assert_file_perms(path)
+
+			for name in dirs:
+				path = os.path.join(root, name)
+				perm_handler.assert_dir_perms(path)
+
+
 class StackedPermHandler(object):
 	def __init__(self, *args, **kwargs):
 		self.handlers = []
@@ -19,6 +54,7 @@ class StackedPermHandler(object):
 	def assert_dir_perms(self, path):
 		for handler in self.handlers:
 			handler.assert_dir_perms(path)
+
 
 class AssertGroupOwner(object):
 	"""
@@ -37,6 +73,7 @@ class AssertGroupOwner(object):
 
 	assert_file_perms = assert_group_owner
 	assert_dir_perms = assert_group_owner
+
 
 class AssertReadWriteGroups(object):
 	"""
@@ -172,49 +209,21 @@ class AssertReadWriteGroups(object):
 			print curr_acl
 			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
 
-class GroupAccessableTree(object):
-	def __init__(self, *args, **kwargs):
-		self.tree_base = kwargs['tree_base']
-		self.ignore_dirs = kwargs['ignore_dirs']
 
-	def is_path_ignored(self, path):
-		"""Determines whether the passed path matches an ignored directory."""
-		for idir in self.ignore_dirs:
-			ipath = os.path.join(self.tree_base, idir)
-			if  ipath == path:
-				return True
-		return False
+def make_group_accessable(tree_base, wgroup, rgroup, ignore_dirs = []):
+	sph = StackedPermHandler()
+	sph.append(AssertGroupOwner(owner = wgroup))
+	sph.append(AssertReadWriteGroups(rgroup = rgroup))
 
-	def filter_ignored_paths(self, root_path, names):
-		"""Filters out the ignored paths."""
-		return filter(
-				lambda name: not self.is_path_ignored(
-						os.path.join(root_path, name)),
-				names)
+	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs)
+	tm.apply(sph)
 
-	def apply(self, perm_handler):
-		for root, dirs, files in os.walk(self.tree_base):
-			dirs = self.filter_ignored_paths(root, dirs)
-			files = self.filter_ignored_paths(root, files)
-
-			for name in files:
-				path = os.path.join(root, name)
-				perm_handler.assert_file_perms(path)
-
-			for name in dirs:
-				path = os.path.join(root, name)
-				perm_handler.assert_dir_perms(path)
 
 if __name__ == '__main__':
-	gat = GroupAccessableTree(tree_base = './testtree',
+	make_group_accessable(tree_base = './testtree',
+			wgroup = 'cdrom',
+			rgroup = 'src',
 			ignore_dirs = ['bla', 'oink/foo'])
-
-	sph = StackedPermHandler()
-	sph.append(AssertGroupOwner(owner = 'cdrom'))
-	sph.append(AssertReadWriteGroups(rgroup = 'src'))
-
-	gat.apply(sph)
-
 	sys.exit(0)
 
 # vim: set ts=4:
