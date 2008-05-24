@@ -90,7 +90,7 @@ class AssertDirStickyGroup(object):
 			os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
 
-class AssertReadWriteGroups(object):
+class AssertWriteAndReadGroups(object):
 	"""
 	Makes sure that the owning group has write access and the specified rgroup
 	has read access (as well as directory listing permissions).
@@ -98,7 +98,10 @@ class AssertReadWriteGroups(object):
 	Apropriately set the default ACLs on the directories.
 	"""
 	def __init__(self, *args, **kwargs):
-		self.rgid = grp.getgrnam(kwargs['rgroup']).gr_gid
+		if 'rgroup' in kwargs and kwargs['rgroup'] is not None:
+			self.rgid = grp.getgrnam(kwargs['rgroup']).gr_gid
+		else:
+			self.rgid = None
 
 	def assert_acl_file_entries(self, curr_acl):
 		changed = False
@@ -134,7 +137,8 @@ class AssertReadWriteGroups(object):
 				continue
 
 			# Remember the rgroup entry ... (see below)
-			if entry.tag_type == posix1e.ACL_GROUP \
+			if self.rgid is not None \
+					and entry.tag_type == posix1e.ACL_GROUP \
 					and entry.qualifier == self.rgid:
 				rgroup_entry = entry
 				continue
@@ -142,20 +146,22 @@ class AssertReadWriteGroups(object):
 			# All other entries shall be removed.
 			print "Deleting %s" % entry
 			curr_acl.delete_entry(entry)
+			changed = True
 			del entry
 
-		# Rgroup should be able to read but not write.
-		if rgroup_entry is None:
-			rgroup_entry = posix1e.Entry(curr_acl)
-			rgroup_entry.tag_type = posix1e.ACL_GROUP
-			rgroup_entry.qualifier = self.rgid
-			changed = True
-		if not rgroup_entry.permset.test(posix1e.ACL_READ):
-			rgroup_entry.permset.add(posix1e.ACL_READ)
-			changed = True
-		if rgroup_entry.permset.test(posix1e.ACL_WRITE):
-			rgroup_entry.permset.delete(posix1e.ACL_WRITE)
-			changed = True
+		if self.rgid is not None:
+			# Rgroup should be able to read but not write.
+			if rgroup_entry is None:
+				rgroup_entry = posix1e.Entry(curr_acl)
+				rgroup_entry.tag_type = posix1e.ACL_GROUP
+				rgroup_entry.qualifier = self.rgid
+				changed = True
+			if not rgroup_entry.permset.test(posix1e.ACL_READ):
+				rgroup_entry.permset.add(posix1e.ACL_READ)
+				changed = True
+			if rgroup_entry.permset.test(posix1e.ACL_WRITE):
+				rgroup_entry.permset.delete(posix1e.ACL_WRITE)
+				changed = True
 
 		if changed:
 			curr_acl.calc_mask()
@@ -221,15 +227,14 @@ class AssertReadWriteGroups(object):
 				| self.assert_acl_file_entries(curr_acl) \
 				| self.assert_acl_dir_entries(curr_acl):
 			print "updated default ACL for %s (%d)" % (path, curr_acl.valid())
-			print curr_acl
 			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
 
 
-def make_group_accessable(tree_base, wgroup, rgroup, ignore_dirs = []):
+def make_group_accessable(tree_base, wgroup, rgroup = None, ignore_dirs = []):
 	sph = StackedPermHandler()
 	sph.append(AssertGroupOwner(owner = wgroup))
 	sph.append(AssertDirStickyGroup())
-	sph.append(AssertReadWriteGroups(rgroup = rgroup))
+	sph.append(AssertWriteAndReadGroups(rgroup = rgroup))
 
 	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs)
 	tm.apply(sph)
