@@ -48,6 +48,7 @@ class TreeModifier(object):
 				names)
 
 	def apply(self, perm_handler):
+		perm_handler.assert_dir_perms(self.tree_base)
 		for root, dirs, files in os.walk(self.tree_base):
 			dirs = self.filter_ignored_paths(root, dirs)
 			files = self.filter_ignored_paths(root, files)
