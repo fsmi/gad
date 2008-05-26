@@ -110,6 +110,87 @@ class AssertDirStickyGroup(object):
 			print "Adding sticky gid to dir %s" % path
 			os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
+class SimpleAcl(object):
+	def __init__(self, acl):
+		self.acl = acl
+		self.modified = False
+
+	def is_modified(self):
+		return self.modified
+
+	def _create_entry(self, type):
+		entry = posix1e.Entry(self.acl)
+		entry.tag_type = type
+		self.modified = True
+		return entry
+
+	def _get_entry(self, type, qual):
+		for entry in self.acl:
+			if entry.tag_type == type \
+					and entry.qualifier == qual:
+				return entry
+		return None
+
+	def has_group(self, gid):
+		return self._get_entry(posix1e.ACL_GROUP, gid) is not None
+
+	def get_group(self, gid):
+		entry = self._get_entry(posix1e.ACL_GROUP, gid)
+		if entry is None:
+			entry = self._create_entry(posix1e.ACL_GROUP)
+			entry.qualifier = gid
+		return entry
+
+
+	def _get_entry_obj(self, type):
+		for entry in self.acl:
+			if entry.tag_type == type:
+				return entry
+		return None
+
+	def get_user_obj(self):
+		entry = self._get_entry_obj(posix1e.ACL_USER_OBJ)
+		if entry is None:
+			entry = self._create_entry(posix1e.ACL_USER_OBJ)
+		return entry
+
+	def get_group_obj(self):
+		entry = self._get_entry_obj(posix1e.ACL_GROUP_OBJ)
+		if entry is None:
+			entry = self._create_entry(posix1e.ACL_GROUP_OBJ)
+		return entry
+
+	def get_other(self):
+		entry = self._get_entry_obj(posix1e.ACL_OTHER)
+		if entry is None:
+			entry = self._create_entry(posix1e.ACL_OTHER)
+		return entry
+
+
+	def fix_perms(self, entry, required_perms = [], forbidden_perms = []):
+		for perm in required_perms:
+			if not entry.permset.test(perm):
+				entry.permset.add(perm)
+				self.modified = True
+		for perm in forbidden_perms:
+			if entry.permset.test(perm):
+				entry.permset.delete(perm)
+				self.modified = True
+
+
+	def _filter_entries(self, type, quals):
+		for entry in self.acl:
+			if entry.tag_type == type:
+				if entry.qualifier not in quals:
+					print "Deleting %s" % entry
+					self.acl.delete_entry(entry)
+					self.modified = True
+
+	def filter_groups(self, gids = []):
+		self._filter_entries(posix1e.ACL_GROUP, gids)
+
+	def filter_users(self, uids = []):
+		self._filter_entries(posix1e.ACL_USER, uids)
 
 class AssertWriteAndReadGroups(object):
 	"""
@@ -125,108 +206,58 @@ class AssertWriteAndReadGroups(object):
 			self.rgid = None
 
 	def assert_acl_file_entries(self, curr_acl):
-		changed = False
-		rgroup_entry = None
+		scurr_acl = SimpleAcl(curr_acl)
+		scurr_acl.filter_groups([self.rgid])
+		scurr_acl.filter_users([])
 
-		for entry in curr_acl:
-			# Ignore these entries.
-			if entry.tag_type == posix1e.ACL_USER_OBJ \
-					or entry.tag_type == posix1e.ACL_MASK:
-				continue
+		# Group owner should be able to read and write.
+		entry = scurr_acl.get_group_obj()
+		scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ,
+				posix1e.ACL_WRITE])
 
-			# Group owner should be able to read and write.
-			if entry.tag_type == posix1e.ACL_GROUP_OBJ:
-				if not entry.permset.test(posix1e.ACL_READ):
-					entry.permset.add(posix1e.ACL_READ)
-					changed = True
-				if not entry.permset.test(posix1e.ACL_WRITE):
-					entry.permset.add(posix1e.ACL_WRITE)
-					changed = True
-				continue
-
-			# Others should not be able to do anything.
-			if entry.tag_type == posix1e.ACL_OTHER:
-				if entry.permset.test(posix1e.ACL_READ):
-					entry.permset.delete(posix1e.ACL_READ)
-					changed = True
-				if entry.permset.test(posix1e.ACL_WRITE):
-					entry.permset.delete(posix1e.ACL_WRITE)
-					changed = True
-				if entry.permset.test(posix1e.ACL_EXECUTE):
-					entry.permset.delete(posix1e.ACL_EXECUTE)
-					changed = True
-				continue
-
-			# Remember the rgroup entry ... (see below)
-			if self.rgid is not None \
-					and entry.tag_type == posix1e.ACL_GROUP \
-					and entry.qualifier == self.rgid:
-				rgroup_entry = entry
-				continue
-
-			# All other entries shall be removed.
-			print "Deleting %s" % entry
-			curr_acl.delete_entry(entry)
-			changed = True
-			del entry
+		# Others should not be able to do anything.
+		entry = scurr_acl.get_other()
+		scurr_acl.fix_perms(entry, forbidden_perms = [posix1e.ACL_READ,
+				posix1e.ACL_WRITE, posix1e.ACL_EXECUTE])
 
 		if self.rgid is not None:
 			# Rgroup should be able to read but not write.
-			if rgroup_entry is None:
-				rgroup_entry = posix1e.Entry(curr_acl)
-				rgroup_entry.tag_type = posix1e.ACL_GROUP
-				rgroup_entry.qualifier = self.rgid
-				changed = True
-			if not rgroup_entry.permset.test(posix1e.ACL_READ):
-				rgroup_entry.permset.add(posix1e.ACL_READ)
-				changed = True
-			if rgroup_entry.permset.test(posix1e.ACL_WRITE):
-				rgroup_entry.permset.delete(posix1e.ACL_WRITE)
-				changed = True
+			entry = scurr_acl.get_group(self.rgid)
+			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ],
+					forbidden_perms = [posix1e.ACL_WRITE])
 
-		if changed:
+		if scurr_acl.is_modified():
 			curr_acl.calc_mask()
-		return changed
+		return scurr_acl.is_modified()
 
 	def assert_acl_dir_entries(self, curr_acl):
-		changed = False
-		rgroup_entry = None
+		scurr_acl = SimpleAcl(curr_acl)
 
-		for entry in curr_acl:
-			# Group owner should be able to execute.
-			if entry.tag_type == posix1e.ACL_GROUP_OBJ:
-				if not entry.permset.test(posix1e.ACL_EXECUTE):
-					entry.permset.add(posix1e.ACL_EXECUTE)
-					changed = True
-				continue
+		# Group owner should be able to execute.
+		entry = scurr_acl.get_group_obj()
+		scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
+		if self.rgid is not None:
 			# Rgroup should be able to execute.
-			if entry.tag_type == posix1e.ACL_GROUP \
-					and entry.qualifier == self.rgid:
-				if not entry.permset.test(posix1e.ACL_EXECUTE):
-					entry.permset.add(posix1e.ACL_EXECUTE)
-					changed = True
-				continue
-			del entry
+			entry = scurr_acl.get_group(self.rgid)
+			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
-		if changed:
+		if scurr_acl.is_modified():
 			curr_acl.calc_mask()
-		return changed
+		return scurr_acl.is_modified()
 
 	def assert_base_dir_perms(self, curr_acl):
 		if curr_acl.valid():
 			return False
-		entry = posix1e.Entry(curr_acl)
-		entry.tag_type = posix1e.ACL_USER_OBJ
+
+		scurr_acl = SimpleAcl(curr_acl)
+		entry = scurr_acl.get_user_obj()
 		entry.permset.add(posix1e.ACL_READ)
 		entry.permset.add(posix1e.ACL_WRITE)
 		entry.permset.add(posix1e.ACL_EXECUTE)
 
-		entry = posix1e.Entry(curr_acl)
-		entry.tag_type = posix1e.ACL_GROUP_OBJ
-
-		entry = posix1e.Entry(curr_acl)
-		entry.tag_type = posix1e.ACL_OTHER
+		scurr_acl.get_group_obj()
+		scurr_acl.get_other()
 		return True
 
 	def assert_file_perms(self, path):
