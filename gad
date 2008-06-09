@@ -46,9 +46,13 @@ class TreeModifier(object):
 	def __init__(self, *args, **kwargs):
 		self.tree_base = kwargs['tree_base']
 		self.ignore_dirs = kwargs['ignore_dirs']
+		self.ignore_links = kwargs.get('ignore_links', True)
 
 	def is_path_ignored(self, path):
-		"""Determines whether the passed path matches an ignored directory."""
+		"""Determines whether the passed path matches an ignored directory
+		or is a symbolic link (and we ignore symbolic links)."""
+		if self.ignore_links and os.path.islink(path):
+			return True
 		for idir in self.ignore_dirs:
 			ipath = os.path.join(self.tree_base, idir)
 			if ipath == path:
@@ -299,13 +303,15 @@ class AssertWriteAndReadGroups(object):
 			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
 
 
-def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = []):
+def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
+		ignore_links = True):
 	sph = StackedPermHandler()
 	sph.append(AssertGroupOwner(owner = wgroup))
 	sph.append(AssertDirStickyGroup())
 	sph.append(AssertWriteAndReadGroups(rgroups = rgroups))
 
-	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs)
+	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs,
+			ignore_links = ignore_links)
 	tm.apply(sph)
 
 
