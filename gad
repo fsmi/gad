@@ -203,12 +203,10 @@ class SimpleAcl(object):
 		for perm in required_perms:
 			if not entry.permset.test(perm):
 				entry.permset.add(perm)
-				print "Adding perm %d" % perm
 				self.modified = True
 		for perm in forbidden_perms:
 			if entry.permset.test(perm):
 				entry.permset.delete(perm)
-				print "Removing perm %d" % perm
 				self.modified = True
 
 
@@ -226,7 +224,7 @@ class SimpleAcl(object):
 	def filter_users(self, uids = []):
 		self._filter_entries(posix1e.ACL_USER, uids)
 
-	def maybe_calc_mask(self):
+	def calc_mask(self):
 		"""Recalculates the permission mask and returns whether the mask
 		actually changed."""
 		old_mask = permset_bits(self.get_mask().permset)
@@ -235,6 +233,29 @@ class SimpleAcl(object):
 			self.modified = True
 			return True
 		return False
+
+	def valid(self):
+		return self.acl.valid()
+
+class SimpleAccessAcl(SimpleAcl):
+	def __init__(self, file_path):
+		self.path = file_path
+		acl = posix1e.ACL(file = self.path)
+		super(SimpleAccessAcl, self).__init__(acl)
+
+	def apply(self):
+		self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
+		self.modified = False
+
+class SimpleDefaultAcl(SimpleAcl):
+	def __init__(self, file_path):
+		self.path = file_path
+		acl = posix1e.ACL(filedef = self.path)
+		super(SimpleDefaultAcl, self).__init__(acl)
+
+	def apply(self):
+		self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
+		self.modified = False
 
 class AssertWriteAndReadGroups(object):
 	"""
@@ -251,86 +272,79 @@ class AssertWriteAndReadGroups(object):
 			self.rgids = []
 
 	def assert_acl_file_entries(self, curr_acl):
-		scurr_acl = SimpleAcl(curr_acl)
-		scurr_acl.filter_groups(self.rgids)
-		scurr_acl.filter_users([])
+		curr_acl.filter_groups(self.rgids)
+		curr_acl.filter_users([])
 
 		# Group owner should be able to read and write.
-		entry = scurr_acl.get_group_obj()
-		scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ,
+		entry = curr_acl.get_group_obj()
+		curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ,
 				posix1e.ACL_WRITE])
 
 		# Others should not be able to do anything.
-		entry = scurr_acl.get_other()
-		scurr_acl.fix_perms(entry, forbidden_perms = [posix1e.ACL_READ,
+		entry = curr_acl.get_other()
+		curr_acl.fix_perms(entry, forbidden_perms = [posix1e.ACL_READ,
 				posix1e.ACL_WRITE, posix1e.ACL_EXECUTE])
 
 		for rgid in self.rgids:
 			# Rgroup should be able to read but not write.
-			entry = scurr_acl.get_group(rgid)
-			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ],
+			entry = curr_acl.get_group(rgid)
+			curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ],
 					forbidden_perms = [posix1e.ACL_WRITE])
 
-		if scurr_acl.is_modified():
+		if curr_acl.is_modified():
 			curr_acl.calc_mask()
-		return scurr_acl.is_modified()
+		return curr_acl.is_modified()
 
 	def assert_acl_dir_entries(self, curr_acl):
-		scurr_acl = SimpleAcl(curr_acl)
-
 		# Group owner should be able to execute.
-		entry = scurr_acl.get_group_obj()
-		scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
+		entry = curr_acl.get_group_obj()
+		curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
 		for rgid in self.rgids:
 			# Rgroup should be able to execute.
-			entry = scurr_acl.get_group(rgid)
-			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
+			entry = curr_acl.get_group(rgid)
+			curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
-		if scurr_acl.is_modified():
+		if curr_acl.is_modified():
 			curr_acl.calc_mask()
-		return scurr_acl.is_modified()
+		return curr_acl.is_modified()
 
 	def assert_base_dir_perms(self, curr_acl):
 		if curr_acl.valid():
 			return False
 
-		scurr_acl = SimpleAcl(curr_acl)
-		entry = scurr_acl.get_user_obj()
+		entry = curr_acl.get_user_obj()
 		entry.permset.add(posix1e.ACL_READ)
 		entry.permset.add(posix1e.ACL_WRITE)
 		entry.permset.add(posix1e.ACL_EXECUTE)
 
-		scurr_acl.get_group_obj()
-		scurr_acl.get_other()
+		curr_acl.get_group_obj()
+		curr_acl.get_other()
 		return True
 
 	def assert_file_perms(self, path):
-		curr_acl = posix1e.ACL(file = path)
-		scurr_acl = SimpleAcl(curr_acl)
+		curr_acl = SimpleAccessAcl(path)
 		if self.assert_acl_file_entries(curr_acl) or \
-				scurr_acl.maybe_calc_mask():
+				curr_acl.calc_mask():
 			log_dbg("updated ACL for file %s" % path)
-			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
+			curr_acl.apply()
 
 	def assert_dir_perms(self, path):
-		curr_acl = posix1e.ACL(file = path)
-		scurr_acl = SimpleAcl(curr_acl)
+		curr_acl = SimpleAccessAcl(path)
 		if (self.assert_acl_file_entries(curr_acl) \
 				| self.assert_acl_dir_entries(curr_acl)) or \
-				scurr_acl.maybe_calc_mask():
+				curr_acl.calc_mask():
 			log_dbg("updated ACL for dir %s" % path)
-			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
+			curr_acl.apply()
 
-		curr_acl = posix1e.ACL(filedef = path)
-		scurr_acl = SimpleAcl(curr_acl)
+		curr_acl = SimpleDefaultAcl(path)
 		if (self.assert_base_dir_perms(curr_acl) \
 				| self.assert_acl_file_entries(curr_acl) \
 				| self.assert_acl_dir_entries(curr_acl)) or \
-				scurr_acl.maybe_calc_mask():
+				curr_acl.calc_mask():
 			log_dbg("updated default ACL for dir %s (%d)" % (path,
 					curr_acl.valid()))
-			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
+			curr_acl.apply()
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
