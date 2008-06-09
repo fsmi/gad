@@ -129,6 +129,13 @@ class AssertDirStickyGroup(object):
 			log_dbg("Adding sticky gid to dir %s" % path)
 			os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
+def permset_bits(permset):
+	bits = 0
+	for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+		if permset.test(perm):
+			bits |= perm
+	return bits
+
 class SimpleAcl(object):
 	def __init__(self, acl):
 		self.acl = acl
@@ -185,15 +192,23 @@ class SimpleAcl(object):
 			entry = self._create_entry(posix1e.ACL_OTHER)
 		return entry
 
+	def get_mask(self):
+		entry = self._get_entry_obj(posix1e.ACL_MASK)
+		if entry is None:
+			entry = self._create_entry(posix1e.ACL_MASK)
+		return entry
+
 
 	def fix_perms(self, entry, required_perms = [], forbidden_perms = []):
 		for perm in required_perms:
 			if not entry.permset.test(perm):
 				entry.permset.add(perm)
+				print "Adding perm %d" % perm
 				self.modified = True
 		for perm in forbidden_perms:
 			if entry.permset.test(perm):
 				entry.permset.delete(perm)
+				print "Removing perm %d" % perm
 				self.modified = True
 
 
@@ -210,6 +225,16 @@ class SimpleAcl(object):
 
 	def filter_users(self, uids = []):
 		self._filter_entries(posix1e.ACL_USER, uids)
+
+	def maybe_calc_mask(self):
+		"""Recalculates the permission mask and returns whether the mask
+		actually changed."""
+		old_mask = permset_bits(self.get_mask().permset)
+		self.acl.calc_mask()
+		if old_mask != permset_bits(self.get_mask().permset):
+			self.modified = True
+			return True
+		return False
 
 class AssertWriteAndReadGroups(object):
 	"""
@@ -282,23 +307,28 @@ class AssertWriteAndReadGroups(object):
 
 	def assert_file_perms(self, path):
 		curr_acl = posix1e.ACL(file = path)
-		if self.assert_acl_file_entries(curr_acl) \
-			| self.assert_acl_dir_entries(curr_acl):
-			log_dbg("updated ACL for %s" % path)
+		scurr_acl = SimpleAcl(curr_acl)
+		if self.assert_acl_file_entries(curr_acl) or \
+				scurr_acl.maybe_calc_mask():
+			log_dbg("updated ACL for file %s" % path)
 			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
 
 	def assert_dir_perms(self, path):
 		curr_acl = posix1e.ACL(file = path)
-		if self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl):
-			log_dbg("updated ACL for %s" % path)
+		scurr_acl = SimpleAcl(curr_acl)
+		if (self.assert_acl_file_entries(curr_acl) \
+				| self.assert_acl_dir_entries(curr_acl)) or \
+				scurr_acl.maybe_calc_mask():
+			log_dbg("updated ACL for dir %s" % path)
 			curr_acl.applyto(path, posix1e.ACL_TYPE_ACCESS)
 
 		curr_acl = posix1e.ACL(filedef = path)
-		if self.assert_base_dir_perms(curr_acl) \
+		scurr_acl = SimpleAcl(curr_acl)
+		if (self.assert_base_dir_perms(curr_acl) \
 				| self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl):
-			log_dbg("updated default ACL for %s (%d)" % (path,
+				| self.assert_acl_dir_entries(curr_acl)) or \
+				scurr_acl.maybe_calc_mask():
+			log_dbg("updated default ACL for dir %s (%d)" % (path,
 					curr_acl.valid()))
 			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
 
