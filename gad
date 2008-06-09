@@ -20,6 +20,8 @@ Group accessable directories - Allows a group of users read and/or write
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA.
 
+# Dependencies: python-pylibacl
+
 import os
 import sys
 import grp
@@ -194,20 +196,21 @@ class SimpleAcl(object):
 
 class AssertWriteAndReadGroups(object):
 	"""
-	Makes sure that the owning group has write access and the specified rgroup
-	has read access (as well as directory listing permissions).
+	Makes sure that the owning group has write access and the specified rgroups
+	have read access (as well as directory listing permissions).
 
 	Apropriately set the default ACLs on the directories.
 	"""
 	def __init__(self, *args, **kwargs):
-		if 'rgroup' in kwargs and kwargs['rgroup'] is not None:
-			self.rgid = grp.getgrnam(kwargs['rgroup']).gr_gid
+		if 'rgroups' in kwargs and kwargs['rgroups'] is not None:
+			self.rgids = map(lambda gname: grp.getgrnam(gname).gr_gid,
+					kwargs['rgroups'])
 		else:
-			self.rgid = None
+			self.rgids = []
 
 	def assert_acl_file_entries(self, curr_acl):
 		scurr_acl = SimpleAcl(curr_acl)
-		scurr_acl.filter_groups([self.rgid])
+		scurr_acl.filter_groups(self.rgids)
 		scurr_acl.filter_users([])
 
 		# Group owner should be able to read and write.
@@ -220,9 +223,9 @@ class AssertWriteAndReadGroups(object):
 		scurr_acl.fix_perms(entry, forbidden_perms = [posix1e.ACL_READ,
 				posix1e.ACL_WRITE, posix1e.ACL_EXECUTE])
 
-		if self.rgid is not None:
+		for rgid in self.rgids:
 			# Rgroup should be able to read but not write.
-			entry = scurr_acl.get_group(self.rgid)
+			entry = scurr_acl.get_group(rgid)
 			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ],
 					forbidden_perms = [posix1e.ACL_WRITE])
 
@@ -237,9 +240,9 @@ class AssertWriteAndReadGroups(object):
 		entry = scurr_acl.get_group_obj()
 		scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
-		if self.rgid is not None:
+		for rgid in self.rgids:
 			# Rgroup should be able to execute.
-			entry = scurr_acl.get_group(self.rgid)
+			entry = scurr_acl.get_group(rgid)
 			scurr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
 
 		if scurr_acl.is_modified():
@@ -282,11 +285,11 @@ class AssertWriteAndReadGroups(object):
 			curr_acl.applyto(path, posix1e.ACL_TYPE_DEFAULT)
 
 
-def make_group_accessable(tree_base, wgroup, rgroup = None, ignore_dirs = []):
+def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = []):
 	sph = StackedPermHandler()
 	sph.append(AssertGroupOwner(owner = wgroup))
 	sph.append(AssertDirStickyGroup())
-	sph.append(AssertWriteAndReadGroups(rgroup = rgroup))
+	sph.append(AssertWriteAndReadGroups(rgroups = rgroups))
 
 	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs)
 	tm.apply(sph)
@@ -295,8 +298,7 @@ def make_group_accessable(tree_base, wgroup, rgroup = None, ignore_dirs = []):
 if __name__ == '__main__':
 	make_group_accessable(tree_base = './testtree',
 			wgroup = 'cdrom',
-			rgroup = 'src',
+			rgroups = ['src', 'video'],
 			ignore_dirs = ['bla', 'oink/foo'])
-	sys.exit(0)
 
 # vim: set ts=4:
