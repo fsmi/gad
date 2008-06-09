@@ -32,6 +32,7 @@ import posix1e
 
 
 debug = True
+simulate = False
 
 def log_dbg(str):
 	global debug
@@ -41,6 +42,10 @@ def log_dbg(str):
 def set_log_dbg(flag):
 	global debug
 	debug = flag
+
+def set_simulate(flag):
+	global simulate
+	simulate = flag
 
 class TreeModifier(object):
 	def __init__(self, *args, **kwargs):
@@ -106,11 +111,13 @@ class AssertGroupOwner(object):
 		self.gid = grp.getgrnam(kwargs['owner']).gr_gid
 
 	def assert_group_owner(self, path):
+		global simulate
 		si = os.stat(path)
 		if si.st_gid != self.gid:
 			log_dbg("Changing gid of %s from %d to %d" % (path, si.st_gid,
 					self.gid))
-			os.chown(path, -1, self.gid)
+			if not simulate:
+				os.chown(path, -1, self.gid)
 
 	assert_file_perms = assert_group_owner
 	assert_dir_perms = assert_group_owner
@@ -124,10 +131,12 @@ class AssertDirStickyGroup(object):
 		pass
 
 	def assert_dir_perms(self, path):
+		global simulate
 		si = os.stat(path)
 		if not (stat.S_IMODE(si.st_mode) & stat.S_ISGID):
 			log_dbg("Adding sticky gid to dir %s" % path)
-			os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
+			if not simulate:
+				os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
 def permset_bits(permset):
 	bits = 0
@@ -306,7 +315,9 @@ class SimpleAccessAcl(SimpleAcl):
 		return "access ACL for \"%s\"" % self.path
 
 	def apply(self):
-		self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
+		global simulate
+		if not simulate:
+			self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
 		self.modified = False
 
 class SimpleDefaultAcl(SimpleAcl):
@@ -319,7 +330,9 @@ class SimpleDefaultAcl(SimpleAcl):
 		return "default ACL for \"%s\"" % self.path
 
 	def apply(self):
-		self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
+		global simulate
+		if not simulate:
+			self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
 		self.modified = False
 
 class AssertWriteAndReadGroups(object):
@@ -428,6 +441,7 @@ if __name__ == '__main__':
 	available = {
 			'make_group_accessable': make_group_accessable,
 			'set_log_dbg': set_log_dbg,
+			'set_simulate': set_simulate,
 			}
 	execfile(sys.argv[1], available)
 
