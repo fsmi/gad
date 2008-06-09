@@ -143,10 +143,57 @@ def bits_as_permarray(bits):
 			perms.append(perm)
 	return perms
 
+class SimpleAclEntry(object):
+	def __init__(self, acl, entry):
+		self.acl = acl
+		self.entry = entry
+
+	def __str__(self):
+		return "%s in %s" % (str(self.entry), str(self.acl))
+
+	def get_permbits(self):
+		return permset_bits(self.entry.permset)
+
+	def fix_perms(self, required_perms = [], forbidden_perms = []):
+		for perm in required_perms:
+			if not self.entry.permset.test(perm):
+				self.entry.permset.add(perm)
+				self.acl.modified = True
+		for perm in forbidden_perms:
+			if self.entry.permset.test(perm):
+				self.entry.permset.delete(perm)
+				self.acl.modified = True
+
+	def delete(self):
+		self.acl.acl.delete_entry(self.entry)
+		self.acl.modified = True
+
+	def get_tag_type(self):
+		return self.entry.tag_type
+	def set_tag_type(self, tag_type):
+		self.entry.tag_type = tag_type
+	tag_type = property(get_tag_type, set_tag_type)
+
+	def get_qualifier(self):
+		return self.entry.qualifier
+	def set_qualifier(self, qualifier):
+		self.entry.qualifier = qualifier
+	qualifier = property(get_qualifier, set_qualifier)
+
+	def get_permset(self):
+		return self.entry.permset
+	def set_permset(self, permset):
+		self.entry.permset = permset
+	permset = property(get_permset, set_permset)
+
 class SimpleAcl(object):
 	def __init__(self, acl):
 		self.acl = acl
 		self.modified = False
+
+	def entries(self):
+		for entry in self.acl:
+			yield SimpleAclEntry(self, entry)
 
 	def is_modified(self):
 		return self.modified
@@ -155,10 +202,10 @@ class SimpleAcl(object):
 		entry = posix1e.Entry(self.acl)
 		entry.tag_type = type
 		self.modified = True
-		return entry
+		return SimpleAclEntry(self, entry)
 
 	def _get_entry(self, type, qual):
-		for entry in self.acl:
+		for entry in self.entries():
 			if entry.tag_type == type \
 					and entry.qualifier == qual:
 				return entry
@@ -176,7 +223,7 @@ class SimpleAcl(object):
 
 
 	def _get_entry_obj(self, type):
-		for entry in self.acl:
+		for entry in self.entries():
 			if entry.tag_type == type:
 				return entry
 		return None
@@ -206,24 +253,12 @@ class SimpleAcl(object):
 		return entry
 
 
-	def fix_perms(self, entry, required_perms = [], forbidden_perms = []):
-		for perm in required_perms:
-			if not entry.permset.test(perm):
-				entry.permset.add(perm)
-				self.modified = True
-		for perm in forbidden_perms:
-			if entry.permset.test(perm):
-				entry.permset.delete(perm)
-				self.modified = True
-
-
 	def _filter_entries(self, type, quals):
-		for entry in self.acl:
+		for entry in self.entries():
 			if entry.tag_type == type:
 				if entry.qualifier not in quals:
 					log_dbg("Deleting %s" % entry)
-					self.acl.delete_entry(entry)
-					self.modified = True
+					entry.delete()
 
 	def filter_groups(self, gids = []):
 		self._filter_entries(posix1e.ACL_GROUP, gids)
@@ -240,20 +275,20 @@ class SimpleAcl(object):
 			return
 
 		# Calculate which perms are masked out by the ACL_MASK entry.
-		forbidden_perms = bits_as_permarray(~permset_bits(mask.permset))
+		forbidden_perms = bits_as_permarray(~mask.get_permbits())
 
 		# Remove the masked-out permissions.
-		for entry in self.acl:
+		for entry in self.entries():
 			if entry.tag_type == posix1e.ACL_MASK:
 				continue
-			self.fix_perms(entry, forbidden_perms = forbidden_perms)
+			entry.fix_perms(forbidden_perms = forbidden_perms)
 
 	def calc_mask(self):
 		"""Recalculates the permission mask and returns whether the mask
 		actually changed."""
-		old_mask = permset_bits(self.get_mask().permset)
+		old_mask = self.get_mask().get_permbits()
 		self.acl.calc_mask()
-		if old_mask != permset_bits(self.get_mask().permset):
+		if old_mask != self.get_mask().get_permbits():
 			self.modified = True
 			return True
 		return False
@@ -267,6 +302,9 @@ class SimpleAccessAcl(SimpleAcl):
 		acl = posix1e.ACL(file = self.path)
 		super(SimpleAccessAcl, self).__init__(acl)
 
+	def __str__(self):
+		return "access ACL for \"%s\"" % self.path
+
 	def apply(self):
 		self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
 		self.modified = False
@@ -276,6 +314,9 @@ class SimpleDefaultAcl(SimpleAcl):
 		self.path = file_path
 		acl = posix1e.ACL(filedef = self.path)
 		super(SimpleDefaultAcl, self).__init__(acl)
+
+	def __str__(self):
+		return "default ACL for \"%s\"" % self.path
 
 	def apply(self):
 		self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
@@ -301,18 +342,17 @@ class AssertWriteAndReadGroups(object):
 
 		# Group owner should be able to read and write.
 		entry = curr_acl.get_group_obj()
-		curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ,
-				posix1e.ACL_WRITE])
+		entry.fix_perms(required_perms = [posix1e.ACL_READ, posix1e.ACL_WRITE])
 
 		# Others should not be able to do anything.
 		entry = curr_acl.get_other()
-		curr_acl.fix_perms(entry, forbidden_perms = [posix1e.ACL_READ,
-				posix1e.ACL_WRITE, posix1e.ACL_EXECUTE])
+		entry.fix_perms(forbidden_perms = [posix1e.ACL_READ, posix1e.ACL_WRITE,
+				posix1e.ACL_EXECUTE])
 
 		for rgid in self.rgids:
 			# Rgroup should be able to read but not write.
 			entry = curr_acl.get_group(rgid)
-			curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_READ],
+			entry.fix_perms(required_perms = [posix1e.ACL_READ],
 					forbidden_perms = [posix1e.ACL_WRITE])
 
 		if curr_acl.is_modified():
@@ -322,12 +362,12 @@ class AssertWriteAndReadGroups(object):
 	def assert_acl_dir_entries(self, curr_acl):
 		# Group owner should be able to execute.
 		entry = curr_acl.get_group_obj()
-		curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
+		entry.fix_perms(required_perms = [posix1e.ACL_EXECUTE])
 
 		for rgid in self.rgids:
 			# Rgroup should be able to execute.
 			entry = curr_acl.get_group(rgid)
-			curr_acl.fix_perms(entry, required_perms = [posix1e.ACL_EXECUTE])
+			entry.fix_perms(required_perms = [posix1e.ACL_EXECUTE])
 
 		if curr_acl.is_modified():
 			curr_acl.calc_mask()
