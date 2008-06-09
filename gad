@@ -136,6 +136,13 @@ def permset_bits(permset):
 			bits |= perm
 	return bits
 
+def bits_as_permarray(bits):
+	perms = []
+	for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+		if bits & perm:
+			perms.append(perm)
+	return perms
+
 class SimpleAcl(object):
 	def __init__(self, acl):
 		self.acl = acl
@@ -223,6 +230,23 @@ class SimpleAcl(object):
 
 	def filter_users(self, uids = []):
 		self._filter_entries(posix1e.ACL_USER, uids)
+
+	def recalc_to_mask(self):
+		"""Adjust all permissions to the effective permissions as dictacted by
+		the mask."""
+		mask = self._get_entry_obj(posix1e.ACL_MASK)
+		if mask is None:
+			# There is no mask, so all perms are the effective perms.
+			return
+
+		# Calculate which perms are masked out by the ACL_MASK entry.
+		forbidden_perms = bits_as_permarray(~permset_bits(mask.permset))
+
+		# Remove the masked-out permissions.
+		for entry in self.acl:
+			if entry.tag_type == posix1e.ACL_MASK:
+				continue
+			self.fix_perms(entry, forbidden_perms = forbidden_perms)
 
 	def calc_mask(self):
 		"""Recalculates the permission mask and returns whether the mask
@@ -324,24 +348,24 @@ class AssertWriteAndReadGroups(object):
 
 	def assert_file_perms(self, path):
 		curr_acl = SimpleAccessAcl(path)
-		if self.assert_acl_file_entries(curr_acl) or \
-				curr_acl.calc_mask():
+		curr_acl.recalc_to_mask()
+		if self.assert_acl_file_entries(curr_acl):
 			log_dbg("updated ACL for file %s" % path)
 			curr_acl.apply()
 
 	def assert_dir_perms(self, path):
 		curr_acl = SimpleAccessAcl(path)
-		if (self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl)) or \
-				curr_acl.calc_mask():
+		curr_acl.recalc_to_mask()
+		if self.assert_acl_file_entries(curr_acl) \
+				| self.assert_acl_dir_entries(curr_acl):
 			log_dbg("updated ACL for dir %s" % path)
 			curr_acl.apply()
 
 		curr_acl = SimpleDefaultAcl(path)
-		if (self.assert_base_dir_perms(curr_acl) \
+		curr_acl.recalc_to_mask()
+		if self.assert_base_dir_perms(curr_acl) \
 				| self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl)) or \
-				curr_acl.calc_mask():
+				| self.assert_acl_dir_entries(curr_acl):
 			log_dbg("updated default ACL for dir %s (%d)" % (path,
 					curr_acl.valid()))
 			curr_acl.apply()
