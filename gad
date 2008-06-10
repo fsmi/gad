@@ -4,7 +4,7 @@ Group accessable directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.1.1
+Version 0.1.2
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -214,10 +214,10 @@ class SimpleAcl(object):
 		return SimpleAclEntry(self, entry)
 
 	def _get_entry(self, type, qual):
-		for entry in self.entries():
+		for entry in self.acl:
 			if entry.tag_type == type \
 					and entry.qualifier == qual:
-				return entry
+				return SimpleAclEntry(self, entry)
 		return None
 
 	def has_group(self, gid):
@@ -232,9 +232,9 @@ class SimpleAcl(object):
 
 
 	def _get_entry_obj(self, type):
-		for entry in self.entries():
+		for entry in self.acl:
 			if entry.tag_type == type:
-				return entry
+				return SimpleAclEntry(self, entry)
 		return None
 
 	def get_user_obj(self):
@@ -263,11 +263,12 @@ class SimpleAcl(object):
 
 
 	def _filter_entries(self, type, quals):
-		for entry in self.entries():
+		for entry in self.acl:
 			if entry.tag_type == type:
 				if entry.qualifier not in quals:
-					log_dbg("Deleting %s" % entry)
-					entry.delete()
+					sentry = SimpleAclEntry(self, entry)
+					log_dbg("Deleting %s" % sentry)
+					sentry.delete()
 
 	def filter_groups(self, gids = []):
 		self._filter_entries(posix1e.ACL_GROUP, gids)
