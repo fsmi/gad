@@ -4,7 +4,7 @@ Group accessable directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.1.0
+Version 0.1.1
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -435,14 +435,16 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
 			ignore_links = ignore_links)
 	tm.apply(sph)
 
-
-if __name__ == '__main__':
+def process_config_file(file):
 	# Dictionary of all methods available to the configuration file.
 	available = {
 			'make_group_accessable': make_group_accessable,
 			'set_log_dbg': set_log_dbg,
 			'set_simulate': set_simulate,
 			}
-	execfile(sys.argv[1], available)
+	execfile(file, available)
+
+if __name__ == '__main__':
+	process_config_file(sys.argv[1])
 
 # vim: set ts=4:
