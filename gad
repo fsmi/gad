@@ -86,8 +86,8 @@ class TreeModifier(object):
 
 
 class StackedPermHandler(object):
-	def __init__(self, *args, **kwargs):
-		self.handlers = []
+	def __init__(self, handlers = []):
+		self.handlers = handlers
 
 	def append(self, handler):
 		self.handlers.append(handler)
@@ -335,6 +335,77 @@ class SimpleDefaultAcl(SimpleAcl):
 			self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
 		self.modified = False
 
+class StackedAccessAclHandlers(object):
+	"""
+	"""
+	def __init__(self, handlers = []):
+		self.handlers = handlers
+
+	def append(self, handler):
+		self.handlers.append(handler)
+
+	def assert_file_perms(self, path):
+		curr_acl = SimpleAccessAcl(path)
+		curr_acl.recalc_to_mask()
+		updated = False
+		for handler in self.handlers:
+			updated |= handler.assert_acl_file_perms(curr_acl)
+		if updated:
+			log_dbg("updated ACL for file %s" % path)
+			curr_acl.apply()
+
+	def assert_dir_perms(self, path):
+		curr_acl = SimpleAccessAcl(path)
+		curr_acl.recalc_to_mask()
+		updated = False
+		for handler in self.handlers:
+			updated |= handler.assert_acl_file_perms(curr_acl)
+			updated |= handler.assert_acl_dir_perms(curr_acl)
+		if updated:
+			log_dbg("updated ACL for dir %s" % path)
+			curr_acl.apply()
+
+class StackedDefaultAclHandlers(object):
+	"""
+	"""
+	def __init__(self, handlers = []):
+		self.handlers = handlers
+
+	def append(self, handler):
+		self.handlers.append(handler)
+
+	def assert_file_perms(self, path):
+		pass
+
+	def assert_dir_perms(self, path):
+		curr_acl = SimpleDefaultAcl(path)
+		curr_acl.recalc_to_mask()
+		updated = False
+		for handler in self.handlers:
+			updated |= handler.assert_acl_file_perms(curr_acl)
+			updated |= handler.assert_acl_dir_perms(curr_acl)
+		if updated:
+			log_dbg("updated default ACL for dir %s (%d)" % (path,
+					curr_acl.valid()))
+			curr_acl.apply()
+
+class AssertBasicValidAcl(object):
+	def assert_acl_file_perms(self, curr_acl):
+		return False
+
+	def assert_acl_dir_perms(self, curr_acl):
+		if curr_acl.valid():
+			return False
+
+		entry = curr_acl.get_user_obj()
+		entry.permset.add(posix1e.ACL_READ)
+		entry.permset.add(posix1e.ACL_WRITE)
+		entry.permset.add(posix1e.ACL_EXECUTE)
+
+		curr_acl.get_group_obj()
+		curr_acl.get_other()
+		return True
+
 class AssertWriteAndReadGroups(object):
 	"""
 	Makes sure that the owning group has write access and the specified rgroups
@@ -349,7 +420,7 @@ class AssertWriteAndReadGroups(object):
 		else:
 			self.rgids = []
 
-	def assert_acl_file_entries(self, curr_acl):
+	def assert_acl_file_perms(self, curr_acl):
 		curr_acl.filter_groups(self.rgids)
 		curr_acl.filter_users([])
 
@@ -372,7 +443,7 @@ class AssertWriteAndReadGroups(object):
 			curr_acl.calc_mask()
 		return curr_acl.is_modified()
 
-	def assert_acl_dir_entries(self, curr_acl):
+	def assert_acl_dir_perms(self, curr_acl):
 		# Group owner should be able to execute.
 		entry = curr_acl.get_group_obj()
 		entry.fix_perms(required_perms = [posix1e.ACL_EXECUTE])
@@ -386,50 +457,22 @@ class AssertWriteAndReadGroups(object):
 			curr_acl.calc_mask()
 		return curr_acl.is_modified()
 
-	def assert_base_dir_perms(self, curr_acl):
-		if curr_acl.valid():
-			return False
-
-		entry = curr_acl.get_user_obj()
-		entry.permset.add(posix1e.ACL_READ)
-		entry.permset.add(posix1e.ACL_WRITE)
-		entry.permset.add(posix1e.ACL_EXECUTE)
-
-		curr_acl.get_group_obj()
-		curr_acl.get_other()
-		return True
-
-	def assert_file_perms(self, path):
-		curr_acl = SimpleAccessAcl(path)
-		curr_acl.recalc_to_mask()
-		if self.assert_acl_file_entries(curr_acl):
-			log_dbg("updated ACL for file %s" % path)
-			curr_acl.apply()
-
-	def assert_dir_perms(self, path):
-		curr_acl = SimpleAccessAcl(path)
-		curr_acl.recalc_to_mask()
-		if self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl):
-			log_dbg("updated ACL for dir %s" % path)
-			curr_acl.apply()
-
-		curr_acl = SimpleDefaultAcl(path)
-		curr_acl.recalc_to_mask()
-		if self.assert_base_dir_perms(curr_acl) \
-				| self.assert_acl_file_entries(curr_acl) \
-				| self.assert_acl_dir_entries(curr_acl):
-			log_dbg("updated default ACL for dir %s (%d)" % (path,
-					curr_acl.valid()))
-			curr_acl.apply()
-
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
 		ignore_links = True):
 	sph = StackedPermHandler()
 	sph.append(AssertGroupOwner(owner = wgroup))
 	sph.append(AssertDirStickyGroup())
-	sph.append(AssertWriteAndReadGroups(rgroups = rgroups))
+
+	sdah = StackedDefaultAclHandlers()
+	sdah.append(AssertBasicValidAcl())
+	awarg = AssertWriteAndReadGroups(rgroups = rgroups)
+	sdah.append(awarg)
+
+	sph.append(sdah)
+	saah = StackedAccessAclHandlers()
+	saah.append(awarg)
+	sph.append(saah)
 
 	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs,
 			ignore_links = ignore_links)
