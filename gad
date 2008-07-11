@@ -103,8 +103,8 @@ class StackedPermHandler(object):
 
 class AssertUserOwnerInGroup(object):
 	"""
-	Makes sure that the owner belongs to a certain group. Otherwise it is
-	switched to a safe user.
+	Makes sure that the file owner belongs to a certain group. Otherwise the
+	files are switched to a safe owner.
 	"""
 	def __init__(self, *args, **kwargs):
 		self.member_uids = map(lambda user: pwd.getpwnam(user).pw_uid,
@@ -114,7 +114,7 @@ class AssertUserOwnerInGroup(object):
 	def assert_user_owner_in_group(self, path):
 		global simulate
 		si = os.stat(path)
-		if not si.st_uid in self.member_uids:
+		if si.st_uid != self.safe_uid and not si.st_uid in self.member_uids:
 			log_dbg("Changing uid of %s from %d to %d" % (path, si.st_uid,
 					self.safe_uid))
 			if not simulate:
