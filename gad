@@ -321,10 +321,11 @@ class SimpleAcl(object):
 
 		# Remove the masked-out permissions.
 		for entry in self.entries():
-			# Ignore the mask entry (obviously). Also ignore the user object,
-			# as it isn't influenced by the mask.
+			# Ignore the mask entry (obviously). Also ignore the user object
+			# and other, as they aren't influenced by the mask.
 			if entry.tag_type == posix1e.ACL_MASK or \
-					entry.tag_type == posix1e.ACL_USER_OBJ:
+					entry.tag_type == posix1e.ACL_USER_OBJ or \
+					entry.tag_type == posix1e.ACL_OTHER:
 				continue
 			entry.fix_perms(forbidden_perms = forbidden_perms)
 
