@@ -27,6 +27,7 @@ Version 0.1.2
 import os
 import sys
 import grp
+import pwd
 import stat
 import posix1e
 
@@ -100,6 +101,27 @@ class StackedPermHandler(object):
 		for handler in self.handlers:
 			handler.assert_dir_perms(path)
 
+class AssertUserOwnerInGroup(object):
+	"""
+	Makes sure that the owner belongs to a certain group. Otherwise it is
+	switched to a safe user.
+	"""
+	def __init__(self, *args, **kwargs):
+		self.member_uids = map(lambda user: pwd.getpwnam(user).pw_uid,
+				grp.getgrnam(kwargs['group']).gr_mem)
+		self.safe_uid = pwd.getpwnam(kwargs['safe_user']).pw_uid
+
+	def assert_user_owner_in_group(self, path):
+		global simulate
+		si = os.stat(path)
+		if not si.st_uid in self.member_uids:
+			log_dbg("Changing uid of %s from %d to %d" % (path, si.st_uid,
+					self.safe_uid))
+			if not simulate:
+				os.chown(path, self.safe_uid, -1)
+
+	assert_file_perms = assert_user_owner_in_group
+	assert_dir_perms = assert_user_owner_in_group
 
 class AssertGroupOwner(object):
 	"""
@@ -459,8 +481,11 @@ class AssertWriteAndReadGroups(object):
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
-		ignore_links = True):
+		ignore_links = True, safe_user = None):
 	sph = StackedPermHandler()
+	if safe_user is not None:
+		sph.append(AssertUserOwnerInGroup(group = wgroup,
+				safe_user = safe_user))
 	sph.append(AssertGroupOwner(owner = wgroup))
 	sph.append(AssertDirStickyGroup())
 

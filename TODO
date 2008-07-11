@@ -1,9 +1,5 @@
 To do:
 
-- Change file owner to a safe user if the current owner is not member of the
-  group with write-access to the file. (This takes care of users no longer
-  member of the write-group still owning files and/or directories.)
-
 - Allow single dir exceptions instead of always ignoring complete sub-trees.
 
 - For files:
