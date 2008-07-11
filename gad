@@ -194,6 +194,17 @@ class SimpleAclEntry(object):
 				self.entry.permset.delete(perm)
 				self.acl.modified = True
 
+	def set_perms(self, perms = []):
+		for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+			if perm in perms:
+				if not self.entry.permset.test(perm):
+					self.entry.permset.add(perm)
+					self.acl.modified = True
+			else:
+				if self.entry.permset.test(perm):
+					self.entry.permset.delete(perm)
+					self.acl.modified = True
+
 	def delete(self):
 		self.acl.acl.delete_entry(self.entry)
 		self.acl.modified = True
@@ -449,38 +460,40 @@ class AssertWriteAndReadGroups(object):
 		curr_acl.filter_groups(self.rgids)
 		curr_acl.filter_users([])
 
-		# Group owner should be able to read and write.
+		# What can the owner do? Use the owner's permissions as a permission
+		# mask for the write and read groups.
+		user_obj_entry = curr_acl.get_user_obj()
+		wgroup_perms = []
+		rgroup_perms = []
+		if user_obj_entry.permset.test(posix1e.ACL_READ):
+			wgroup_perms.append(posix1e.ACL_READ)
+			rgroup_perms.append(posix1e.ACL_READ)
+		if user_obj_entry.permset.test(posix1e.ACL_EXECUTE):
+			wgroup_perms.append(posix1e.ACL_EXECUTE)
+			rgroup_perms.append(posix1e.ACL_EXECUTE)
+		if user_obj_entry.permset.test(posix1e.ACL_WRITE):
+			# Note: Read-only groups do not get write permission.
+			wgroup_perms.append(posix1e.ACL_WRITE)
+
+		# Group owner (write group) ...
 		entry = curr_acl.get_group_obj()
-		entry.fix_perms(required_perms = [posix1e.ACL_READ, posix1e.ACL_WRITE])
+		entry.set_perms(perms = wgroup_perms)
+
+		# Read groups ...
+		for rgid in self.rgids:
+			entry = curr_acl.get_group(rgid)
+			entry.set_perms(perms = rgroup_perms)
 
 		# Others should not be able to do anything.
 		entry = curr_acl.get_other()
-		entry.fix_perms(forbidden_perms = [posix1e.ACL_READ, posix1e.ACL_WRITE,
-				posix1e.ACL_EXECUTE])
-
-		for rgid in self.rgids:
-			# Rgroup should be able to read but not write.
-			entry = curr_acl.get_group(rgid)
-			entry.fix_perms(required_perms = [posix1e.ACL_READ],
-					forbidden_perms = [posix1e.ACL_WRITE])
+		entry.set_perms([])
 
 		if curr_acl.is_modified():
 			curr_acl.calc_mask()
 		return curr_acl.is_modified()
 
 	def assert_acl_dir_perms(self, curr_acl):
-		# Group owner should be able to execute.
-		entry = curr_acl.get_group_obj()
-		entry.fix_perms(required_perms = [posix1e.ACL_EXECUTE])
-
-		for rgid in self.rgids:
-			# Rgroup should be able to execute.
-			entry = curr_acl.get_group(rgid)
-			entry.fix_perms(required_perms = [posix1e.ACL_EXECUTE])
-
-		if curr_acl.is_modified():
-			curr_acl.calc_mask()
-		return curr_acl.is_modified()
+		return False
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],

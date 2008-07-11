@@ -1,8 +1,3 @@
 To do:
 
 - Allow single dir exceptions instead of always ignoring complete sub-trees.
-
-- For files:
-  - Give wgroup exactly the owner's permissions
-  - Give rgroup the owner's permissions except write. Do not give (but allow)
-    execute in case the file has sticky bits set.
