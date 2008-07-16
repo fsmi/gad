@@ -4,7 +4,7 @@ Group accessable directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.2.0
+Version 0.2.1
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -51,7 +51,7 @@ def set_simulate(flag):
 class TreeModifier(object):
 	def __init__(self, *args, **kwargs):
 		self.tree_base = kwargs['tree_base']
-		self.ignore_dirs = kwargs['ignore_dirs']
+		self.ignore_paths = kwargs['ignore_paths']
 		self.ignore_links = kwargs.get('ignore_links', True)
 
 	def is_path_ignored(self, path):
@@ -59,7 +59,7 @@ class TreeModifier(object):
 		or is a symbolic link (and we ignore symbolic links)."""
 		if self.ignore_links and os.path.islink(path):
 			return True
-		for idir in self.ignore_dirs:
+		for idir in self.ignore_paths:
 			ipath = os.path.join(self.tree_base, idir)
 			if ipath == path:
 				return True
@@ -497,7 +497,7 @@ class AssertWriteAndReadGroups(object):
 		return False
 
 
-def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
+def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
 		ignore_links = True, safe_user = None):
 	sph = StackedPermHandler()
 	if safe_user is not None:
@@ -516,7 +516,7 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_dirs = [],
 	saah.append(awarg)
 	sph.append(saah)
 
-	tm = TreeModifier(tree_base = tree_base, ignore_dirs = ignore_dirs,
+	tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
 			ignore_links = ignore_links)
 	tm.apply(sph)
 
