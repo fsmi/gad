@@ -4,7 +4,7 @@ Group accessable directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.2.1
+Version 0.2.2
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -52,6 +52,7 @@ class TreeModifier(object):
 	def __init__(self, *args, **kwargs):
 		self.tree_base = kwargs['tree_base']
 		self.ignore_paths = kwargs['ignore_paths']
+		self.ignore_elements = kwargs['ignore_elements']
 		self.ignore_links = kwargs.get('ignore_links', True)
 
 	def is_path_ignored(self, path):
@@ -68,7 +69,8 @@ class TreeModifier(object):
 	def filter_ignored_paths(self, root_path, names):
 		"""Filters out the ignored paths."""
 		for name in names[:]:
-			if self.is_path_ignored(os.path.join(root_path, name)):
+			if name in self.ignore_elements or \
+					self.is_path_ignored(os.path.join(root_path, name)):
 				names.remove(name)
 
 	def apply(self, perm_handler):
@@ -498,7 +500,7 @@ class AssertWriteAndReadGroups(object):
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
-		ignore_links = True, safe_user = None):
+		ignore_elements = [], ignore_links = True, safe_user = None):
 	sph = StackedPermHandler()
 	if safe_user is not None:
 		sph.append(AssertUserOwnerInGroup(group = wgroup,
@@ -517,7 +519,7 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
 	sph.append(saah)
 
 	tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
-			ignore_links = ignore_links)
+			ignore_elements = ignore_elements, ignore_links = ignore_links)
 	tm.apply(sph)
 
 def process_config_file(file):
