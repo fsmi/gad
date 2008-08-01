@@ -89,8 +89,11 @@ class TreeModifier(object):
 
 
 class StackedPermHandler(object):
-	def __init__(self, handlers = []):
-		self.handlers = handlers
+	def __init__(self, handlers = None):
+		if handlers is None:
+			self.handlers = []
+		else:
+			self.handlers = handlers
 
 	def append(self, handler):
 		self.handlers.append(handler)
@@ -377,8 +380,11 @@ class SimpleDefaultAcl(SimpleAcl):
 class StackedAccessAclHandlers(object):
 	"""
 	"""
-	def __init__(self, handlers = []):
-		self.handlers = handlers
+	def __init__(self, handlers = None):
+		if handlers is None:
+			self.handlers = []
+		else:
+			self.handlers = handlers
 
 	def append(self, handler):
 		self.handlers.append(handler)
@@ -407,8 +413,11 @@ class StackedAccessAclHandlers(object):
 class StackedDefaultAclHandlers(object):
 	"""
 	"""
-	def __init__(self, handlers = []):
-		self.handlers = handlers
+	def __init__(self, handlers = None):
+		if handlers is None:
+			self.handlers = []
+		else:
+			self.handlers = handlers
 
 	def append(self, handler):
 		self.handlers.append(handler)
