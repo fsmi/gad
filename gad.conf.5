@@ -1,4 +1,4 @@
-.TH GAD.CONF 5 "November 29, 2008"
+.TH GAD.CONF 5 "November 30, 2008"
 
 .SH NAME
 .B gad.conf
@@ -26,8 +26,8 @@ All directory options are keyword parameters to method
 .I tree_base = '/directory/base'
 Specifies the directory base on which gad will operate.
 .TP
-.I wgroup = 'unix_group_name'
-Name of the group that should have read and write access.
+.I wgroups = ['unix_group_name1', 'unix_group_name2']
+List of groups that should have read and write access.
 .TP
 .I rgroups = ['unix_group_name1', 'unix_group_name2']
 List of groups that should have read-only access.

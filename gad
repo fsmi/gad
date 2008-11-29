@@ -111,8 +111,9 @@ class StackedHandler(object):
         else:
             self.handlers = handlers
 
-    def append(self, handler):
-        self.handlers.append(handler)
+    def append(self, *handlers):
+        for handler in handlers:
+            self.handlers.append(handler)
 
 class StackedPermHandler(StackedHandler):
     """Forwards a permission handler request to a stored list of permission
@@ -130,47 +131,66 @@ class StackedPermHandler(StackedHandler):
         for handler in self.handlers:
             handler.assert_dir_perms(path)
 
-class AssertUserOwnerInGroup(object):
-    """Makes sure that the file/directory unix owner belongs to a certain
-    group. If it doesn't, the owner is switched to a safe user."""
+class BaseAssertOwnerValid(object):
+    def __init__(self, repl_name, names = []):
+        # Replacement id
+        self.repl_id = self._translate_name(repl_name)
 
-    def __init__(self, *args, **kwargs):
-        # Cache all valid uids of the safe group.
-        self.member_uids = map(lambda user: pwd.getpwnam(user).pw_uid,
-                grp.getgrnam(kwargs['group']).gr_mem)
-        # Replacement uid
-        self.safe_uid = pwd.getpwnam(kwargs['safe_user']).pw_uid
+        # Cache all valid ids of the safe names.
+        self.safe_ids = set()
+        self.safe_ids.add(self.repl_id)
+        for name in names:
+            self.safe_ids.add(self._translate_name(name))
 
-    def assert_user_owner_in_group(self, path):
+    def _assert_owner(self, path):
         global simulate
         si = os.stat(path)
-        if si.st_uid != self.safe_uid and not si.st_uid in self.member_uids:
-            log_dbg("Changing uid of %s from %d to %d" % (path, si.st_uid,
-                    self.safe_uid))
+        si_member = getattr(si, self._STAT_NAME)
+        if not si_member in self.safe_ids:
+            log_dbg("Changing %s of %s from %d to %d" % (path, self._ID_NAME,
+                    si_member, self.repl_id))
             if not simulate:
-                os.chown(path, self.safe_uid, -1)
+                self._perform(path, self.repl_id)
 
     # Handle both files and directories.
-    assert_file_perms = assert_user_owner_in_group
-    assert_dir_perms = assert_user_owner_in_group
+    assert_file_perms = _assert_owner
+    assert_dir_perms = _assert_owner
 
-class AssertGroupOwner(object):
-    """Makes sure that all files and directories are owned by a specified
-    group."""
-    def __init__(self, *args, **kwargs):
-        self.gid = grp.getgrnam(kwargs['owner']).gr_gid
+class AssertUserOwnerValid(BaseAssertOwnerValid):
+    """Makes sure that the file or directory user owner belongs to a list of
+    list of users. If it doesn't, the owner is switched to a safe user."""
 
-    def assert_group_owner(self, path):
-        global simulate
-        si = os.stat(path)
-        if si.st_gid != self.gid:
-            log_dbg("Changing gid of %s from %d to %d" % (path, si.st_gid,
-                    self.gid))
-            if not simulate:
-                os.chown(path, -1, self.gid)
+    # Name of the field in the stat structure.
+    _STAT_NAME = 'st_uid'
+    _ID_NAME = 'uid'
 
-    assert_file_perms = assert_group_owner
-    assert_dir_perms = assert_group_owner
+    def __init__(self, repl_user, users = []):
+        BaseAssertOwnerValid.__init__(self, repl_name = repl_user,
+                names = users)
+
+    def _translate_name(self, user_name):
+        return pwd.getpwnam(user_name).pw_uid
+
+    def _perform(self, path, uid):
+        return os.chown(path, uid, -1)
+
+class AssertGroupOwnerValid(BaseAssertOwnerValid):
+    """Makes sure that the file or directory group owner belongs to a list of
+    groups. If it doesn't, the owner is switched to a safe group."""
+
+    # Name of the field in the stat structure.
+    _STAT_NAME = 'st_gid'
+    _ID_NAME = 'gid'
+
+    def __init__(self, repl_group, groups = []):
+        BaseAssertOwnerValid.__init__(self, repl_name = repl_group,
+                names = groups)
+
+    def _translate_name(self, group_name):
+        return grp.getgrnam(group_name).gr_gid
+
+    def _perform(self, path, gid):
+        return os.chown(path, -1, gid)
 
 class AssertDirStickyGroup(object):
     """Makes sure that all directories have the group sticky bit set."""
@@ -190,25 +210,28 @@ class StackedAccessAclHandlers(StackedHandler):
     """
 
     def assert_file_perms(self, path):
+        global simulate
         curr_acl = simpleacl.SimpleAccessAcl(path)
         curr_acl.recalc_to_mask()
         updated = False
         for handler in self.handlers:
             updated |= handler.assert_acl_file_perms(curr_acl)
         if updated:
+            curr_acl.calc_mask()
             log_dbg("updated ACL for file %s" % path)
-            curr_acl.apply()
+            curr_acl.apply(simulate = simulate)
 
     def assert_dir_perms(self, path):
+        global simulate
         curr_acl = simpleacl.SimpleAccessAcl(path)
         curr_acl.recalc_to_mask()
         updated = False
         for handler in self.handlers:
-            updated |= handler.assert_acl_file_perms(curr_acl)
             updated |= handler.assert_acl_dir_perms(curr_acl)
         if updated:
+            curr_acl.calc_mask()
             log_dbg("updated ACL for dir %s" % path)
-            curr_acl.apply()
+            curr_acl.apply(simulate = simulate)
 
 class StackedDefaultAclHandlers(StackedHandler):
     """
@@ -219,16 +242,17 @@ class StackedDefaultAclHandlers(StackedHandler):
         pass
 
     def assert_dir_perms(self, path):
+        global simulate
         curr_acl = simpleacl.SimpleDefaultAcl(path)
         curr_acl.recalc_to_mask()
         updated = False
         for handler in self.handlers:
-            updated |= handler.assert_acl_file_perms(curr_acl)
             updated |= handler.assert_acl_dir_perms(curr_acl)
         if updated:
+            curr_acl.calc_mask()
             log_dbg("updated default ACL for dir %s (%d)" % (path,
                     curr_acl.valid()))
-            curr_acl.apply()
+            curr_acl.apply(simulate = simulate)
 
 class AssertBasicValidAcl(object):
     def assert_acl_file_perms(self, curr_acl):
@@ -250,82 +274,172 @@ class AssertBasicValidAcl(object):
 
         return True
 
-class AssertWriteAndReadGroups(object):
-    """Makes sure that the owning group has write access and the specified
-    rgroups have read access (as well as directory listing permissions).
+class BaseAssertPerms(object):
+    """Makes sure that all permissions are set as requested."""
 
-    Apropriately set the default ACLs on the directories."""
+    def __init__(self, rnames = [], wnames = [], xnames = []):
+        self.rids = self._getidsbyname(rnames)
+        self.wids = self._getidsbyname(wnames)
+        self.xids = self._getidsbyname(xnames)
+        self.allids = set(self.rids + self.wids + self.xids)
 
-    def __init__(self, *args, **kwargs):
-        if 'rgroups' in kwargs and kwargs['rgroups'] is not None:
-            self.rgids = map(lambda gname: grp.getgrnam(gname).gr_gid,
-                    kwargs['rgroups'])
-        else:
-            self.rgids = []
+    def assert_acl_perms(self, curr_acl):
+        self._filter_ids(curr_acl)
 
-    def assert_acl_file_perms(self, curr_acl):
-        curr_acl.filter_groups(self.rgids)
-        curr_acl.filter_users([])
+        owner_entry = self._get_owner_entry(curr_acl)
 
-        # Use the owner's permissions as a permission mask for the write and
-        # read groups.
-        user_obj_entry = curr_acl.get_user_obj()
-        wgroup_perms = []
-        rgroup_perms = []
-        if user_obj_entry.permset.test(simpleacl.ACL_READ):
-            wgroup_perms.append(simpleacl.ACL_READ)
-            rgroup_perms.append(simpleacl.ACL_READ)
-        if user_obj_entry.permset.test(simpleacl.ACL_EXECUTE):
-            wgroup_perms.append(simpleacl.ACL_EXECUTE)
-            rgroup_perms.append(simpleacl.ACL_EXECUTE)
-        if user_obj_entry.permset.test(simpleacl.ACL_WRITE):
-            # Note: Read-only groups do not get write permission.
-            wgroup_perms.append(simpleacl.ACL_WRITE)
+        si = os.stat(curr_acl.path)
+        owner_id = getattr(si, self._STAT_NAME)
 
-        # Group owner (write group) ...
-        entry = curr_acl.get_group_obj()
-        entry.set_perms(perms = wgroup_perms)
+        # We only add explicit entries for ids that arent' already present
+        # as owner entries.
+        relevant_ids = self.allids.difference(set([owner_id]))
+        for id in relevant_ids:
+            perms = []
+            # Use the owner's permissions as a permission mask for all others.
+            if id in self.rids \
+                    and owner_entry.permset.test(simpleacl.ACL_READ):
+                perms.append(simpleacl.ACL_READ)
+            if id in self.wids \
+                    and owner_entry.permset.test(simpleacl.ACL_WRITE):
+                perms.append(simpleacl.ACL_WRITE)
+            if id in self.xids \
+                    and owner_entry.permset.test(simpleacl.ACL_EXECUTE):
+                perms.append(simpleacl.ACL_EXECUTE)
+            self._get_entry(curr_acl, id).set_perms(perms = perms)
 
-        # Read groups ...
-        for rgid in self.rgids:
-            entry = curr_acl.get_group(rgid)
-            entry.set_perms(perms = rgroup_perms)
+        return curr_acl.is_modified()
 
-        # Others should not be able to do anything.
+    assert_acl_file_perms = assert_acl_perms
+    assert_acl_dir_perms = assert_acl_perms
+
+class AssertGroupPerms(BaseAssertPerms):
+    """Makes sure that all group permissions are set as requested."""
+
+    _STAT_NAME = 'st_gid'
+
+    def __init__(self, rgroups = [], wgroups = [], xgroups = []):
+        BaseAssertPerms.__init__(self, rnames = rgroups, wnames = wgroups,
+                xnames = xgroups)
+
+    def _getidsbyname(self, groups):
+        return map(lambda group_name: grp.getgrnam(group_name).gr_gid, groups)
+
+    def _filter_ids(self, curr_acl):
+        curr_acl.filter_groups(self.allids)
+
+    def _get_owner_entry(self, curr_acl):
+        return curr_acl.get_group_obj()
+
+    def _get_entry(self, curr_acl, gid):
+        return curr_acl.get_group(gid)
+
+class AssertUserPerms(BaseAssertPerms):
+    """Makes sure that user permissions are set as requested."""
+
+    _STAT_NAME = 'st_uid'
+
+    def __init__(self, rusers = [], wusers = [], xusers = []):
+        BaseAssertPerms.__init__(self, rnames = rusers, wnames = wusers,
+                xnames = xusers)
+
+    def _getidsbyname(self, users):
+        return map(lambda user_name: pwd.getpwnam(user_name).pw_uid, users)
+
+    def _filter_ids(self, curr_acl):
+        curr_acl.filter_users(self.allids)
+
+    def _get_owner_entry(self, curr_acl):
+        return curr_acl.get_user_obj()
+
+    def _get_entry(self, curr_acl, uid):
+        return curr_acl.get_user(uid)
+
+class GroupOwnerEqualUserOwnerPerms(object):
+    """Use the owner's permissions as a permission template for owner group."""
+
+    def assert_acl_perms(self, curr_acl):
+        user_owner = curr_acl.get_user_obj()
+        group_owner = curr_acl.get_group_obj()
+        group_owner.set_permbits(user_owner.get_permbits())
+        return curr_acl.is_modified()
+
+    assert_acl_file_perms = assert_acl_perms
+    assert_acl_dir_perms = assert_acl_perms
+
+class NoOtherPerms(object):
+    """Others should not be able to do anything."""
+
+    def assert_acl_perms(self, curr_acl):
         entry = curr_acl.get_other()
         entry.set_perms([])
 
-        if curr_acl.is_modified():
-            curr_acl.calc_mask()
         return curr_acl.is_modified()
 
-    def assert_acl_dir_perms(self, curr_acl):
-        return False
+    assert_acl_file_perms = assert_acl_perms
+    assert_acl_dir_perms = assert_acl_perms
 
 
-def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
-        ignore_elements = [], ignore_links = True, safe_user = None,
-        recursive = True, ignore_base = False):
+def get_groups_members(groups):
+    return reduce(lambda x, y: x + y,
+            map(lambda gr_nam: grp.getgrnam(gr_nam).gr_mem, groups), [])
+
+def make_tree_accessable(tree_base,
+        xgroups = [], wgroups = [], wxgroups = [], rgroups = [], rxgroups = [],
+        rwgroups = [], rwxgroups = [],
+        xusers = [], wusers = [], wxusers = [], rusers = [], rxusers = [],
+        rwusers = [], rwxusers = [],
+        safe_user = None, safe_group = None,
+        ignore_paths = [], ignore_elements = [],
+        ignore_links = True, ignore_base = False, recursive = True,
+        group_sticky = True):
     global simulate
     if simulate:
         log_dbg('only simulating commands for %s' % tree_base)
 
-    sph = StackedPermHandler()
-    if safe_user is not None:
-        sph.append(AssertUserOwnerInGroup(group = wgroup,
-                safe_user = safe_user))
-    sph.append(AssertGroupOwner(owner = wgroup))
-    sph.append(AssertDirStickyGroup())
+    # Calculate r, w and x groups from convenience group lists.
+    rgroups = set(rgroups + rxgroups + rwgroups + rwxgroups)
+    wgroups = set(wgroups + wxgroups + rwgroups + rwxgroups)
+    xgroups = set(xgroups + wxgroups + rxgroups + rwxgroups)
+    del(wxgroups, rxgroups, rwgroups, rwxgroups)
 
-    awarg = AssertWriteAndReadGroups(rgroups = rgroups)
+    # Calculate r, w and x user from convenience user lists.
+    rusers = set(rusers + rxusers + rwusers + rwxusers)
+    wusers = set(wusers + wxusers + rwusers + rwxusers)
+    xusers = set(xusers + wxusers + rxusers + rwxusers)
+    del(wxusers, rxusers, rwusers, rwxusers)
+
+
+    sph = StackedPermHandler()
+
+    if safe_user is not None:
+        # Make sure that all files/dirs are owned by a sensible user.
+        sph.append(AssertUserOwnerValid(repl_user = safe_user,
+                users = wusers.union(get_groups_members(wgroups))))
+
+    if safe_group is not None:
+        # Make sure that all files/dirs are owned by a sensible group.
+        sph.append(AssertGroupOwnerValid(repl_group = safe_group,
+                groups = wgroups))
+
+    if group_sticky:
+        # Make the owner group sticky on directories?
+        sph.append(AssertDirStickyGroup())
+
+    common_perms = [
+            AssertUserPerms(rusers = rusers, wusers = wusers, xusers = xusers),
+            GroupOwnerEqualUserOwnerPerms(),
+            AssertGroupPerms(rgroups = rgroups, wgroups = wgroups,
+                    xgroups = xgroups),
+            NoOtherPerms() ]
 
     sdah = StackedDefaultAclHandlers()
     sdah.append(AssertBasicValidAcl())
-    sdah.append(awarg)
+    sdah.append(*common_perms)
 
     sph.append(sdah)
     saah = StackedAccessAclHandlers()
-    saah.append(awarg)
+    saah.append(*common_perms)
     sph.append(saah)
 
     tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
@@ -333,11 +447,12 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
             ignore_base = ignore_base, recursive = recursive)
     tm.apply(sph)
 
+
 def process_config_file(file):
     log_dbg('processing %s' % file)
     # Dictionary of all methods available to the configuration file.
     available = {
-            'make_group_accessable': make_group_accessable,
+            'make_tree_accessable': make_tree_accessable,
             'set_log_dbg': set_log_dbg,
             'set_simulate': set_simulate,
             }

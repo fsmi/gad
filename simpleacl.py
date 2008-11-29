@@ -2,8 +2,8 @@
 The simpleacl module is a wrapper layer around the posix1e module. It
 attempts to simplify the handling of POSIX1e ACLs.
 
-You will typically use the classes SimpleAccessAcl and SimpleDefaultAcl to
-analyse and set ACLs.
+You will typically use the classes SimpleAcl, SimpleAccessAcl and
+SimpleDefaultAcl to analyse and set ACLs.
 
 
 Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
@@ -54,6 +54,9 @@ class SimpleAclEntry(object):
 
     def get_permbits(self):
         return permset_bits(self.entry.permset)
+
+    def set_permbits(self, bits):
+        return self.set_perms(bits_as_permarray(bits))
 
     def fix_perms(self, required_perms = [], forbidden_perms = []):
         for perm in required_perms:
@@ -107,6 +110,9 @@ class SimpleAcl(object):
         self.acl = acl
         self.modified = False
 
+    def __str__(self):
+        return self.acl.__str__()
+
     def entries(self):
         for entry in self.acl:
             yield SimpleAclEntry(self, entry)
@@ -135,6 +141,13 @@ class SimpleAcl(object):
         if entry is None:
             entry = self._create_entry(posix1e.ACL_GROUP)
             entry.qualifier = gid
+        return entry
+
+    def get_user(self, uid):
+        entry = self._get_entry(posix1e.ACL_USER, uid)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_USER)
+            entry.qualifier = uid
         return entry
 
 
@@ -226,6 +239,9 @@ class SimpleAcl(object):
     def valid(self):
         return self.acl.valid()
 
+class InvalidAclError(Exception):
+    pass
+
 class SimpleAccessAcl(SimpleAcl):
     def __init__(self, file_path):
         self.path = file_path
@@ -234,9 +250,12 @@ class SimpleAccessAcl(SimpleAcl):
 
     def __str__(self):
         return "access ACL for \"%s\"" % self.path
+    def __repr__(self):
+        return '<SimpleAccessAcl: %s, %s>' % (self.__str__(), self.acl)
 
-    def apply(self):
-        global simulate
+    def apply(self, simulate = False):
+        if not self.valid():
+            raise InvalidAclError("attempt to apply invalid acl", self)
         if not simulate:
             self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
         self.modified = False
@@ -249,9 +268,12 @@ class SimpleDefaultAcl(SimpleAcl):
 
     def __str__(self):
         return "default ACL for \"%s\"" % self.path
+    def __repr__(self):
+        return '<SimpleDefaultAcl: %s, %s>' % (self.__str__(), self.acl)
 
-    def apply(self):
-        global simulate
+    def apply(self, simulate = False):
+        if not self.valid():
+            raise InvalidAclError("attempt to apply invalid acl", self)
         if not simulate:
             self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
         self.modified = False
