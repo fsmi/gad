@@ -1,0 +1,23 @@
+Source: gad
+Section: utils
+Priority: extra
+Maintainer: Fabian Knittel <fabian.knittel@fsmi.uni-karlsruhe.de>
+Build-Depends: debhelper (>= 5.0.38), python-support (>= 0.5.3)
+Standards-Version: 3.8.0
+
+Package: gad
+Architecture: all
+Depends: ${python:Depends}, python-pylibacl
+Provides: ${python:Provides}
+Description: Keep directories accessable by POSIX ACL groups
+ gad ensures that specified directories are accessable and stay accessable by
+ certain ACL groups. The script currently supports a single writer group and
+ an unlimited number of read-only groups per directory. Exclude filters are
+ supported as well.
+ .
+ The script is intended for work-group directories with multiple people
+ reading and writing to the directory. Default ACLs are used to prevent
+ participants (e.g. with a strict umask) from unintentionally creating files or
+ directories that are not accessable by everyone in the group. To catch corner
+ cases where that does not suffice, the script is usually called regularly from
+ a cron job.
