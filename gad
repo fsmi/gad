@@ -54,6 +54,8 @@ class TreeModifier(object):
 		self.ignore_paths = kwargs['ignore_paths']
 		self.ignore_elements = kwargs['ignore_elements']
 		self.ignore_links = kwargs.get('ignore_links', True)
+		self.ignore_base = kwargs.get('ignore_base', False)
+		self.recursive = kwargs.get('recursive', True)
 
 	def is_path_ignored(self, path):
 		"""Determines whether the passed path matches an ignored directory
@@ -74,18 +76,20 @@ class TreeModifier(object):
 				names.remove(name)
 
 	def apply(self, perm_handler):
-		perm_handler.assert_dir_perms(self.tree_base)
-		for root, dirs, files in os.walk(self.tree_base):
-			self.filter_ignored_paths(root, dirs)
-			self.filter_ignored_paths(root, files)
+		if not self.ignore_base:
+			perm_handler.assert_dir_perms(self.tree_base)
+		if self.recursive:
+			for root, dirs, files in os.walk(self.tree_base):
+				self.filter_ignored_paths(root, dirs)
+				self.filter_ignored_paths(root, files)
 
-			for name in files:
-				path = os.path.join(root, name)
-				perm_handler.assert_file_perms(path)
+				for name in files:
+					path = os.path.join(root, name)
+					perm_handler.assert_file_perms(path)
 
-			for name in dirs:
-				path = os.path.join(root, name)
-				perm_handler.assert_dir_perms(path)
+				for name in dirs:
+					path = os.path.join(root, name)
+					perm_handler.assert_dir_perms(path)
 
 
 class StackedPermHandler(object):
@@ -509,7 +513,8 @@ class AssertWriteAndReadGroups(object):
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
-		ignore_elements = [], ignore_links = True, safe_user = None):
+		ignore_elements = [], ignore_links = True, safe_user = None,
+		recursive = True, ignore_base = False):
 	sph = StackedPermHandler()
 	if safe_user is not None:
 		sph.append(AssertUserOwnerInGroup(group = wgroup,
@@ -528,7 +533,8 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
 	sph.append(saah)
 
 	tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
-			ignore_elements = ignore_elements, ignore_links = ignore_links)
+			ignore_elements = ignore_elements, ignore_links = ignore_links,
+			ignore_base = ignore_base, recursive = recursive)
 	tm.apply(sph)
 
 def process_config_file(file):
