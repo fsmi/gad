@@ -1,0 +1,60 @@
+.TH GAD.CONF 5 "November 29, 2008"
+
+.SH NAME
+.B gad.conf
+\- configure directories for gad
+
+.SH DESCRIPTION
+.B /etc/gad.conf
+is a configuration file for gad. It uses a python-style format and may contain
+global configuration statements and statements affecting a specific directory
+or directory tree. The configuration statements look like python methods and
+take parameters.
+
+.SH GLOBAL OPTIONS
+.TP
+.I set_log_dbg(True|False)
+Disable or enable debug logging to standard error. (Default is enabled.)
+.TP
+.I set_simulate(True|False)
+Disable or enable simulation mode. In simulation mode, changes are not applied. (Default is disabled.)
+
+.SH DIRECTORY OPTIONS
+All directory options are keyword parameters to method
+.I make_group_accessable(parameters)
+.TP
+.I tree_base = '/directory/base'
+Specifies the directory base on which gad will operate.
+.TP
+.I wgroup = 'unix_group_name'
+Name of the group that should have read and write access.
+.TP
+.I rgroups = ['unix_group_name1', 'unix_group_name2']
+List of groups that should have read-only access.
+.TP
+.I ignore_links = True
+If set to False, symbolic links are followed. (Default is True.)
+.TP
+.I recursive = True
+If set to False, gad does not recursively descend into the given tree_base
+(i.e. it does not look at files and directories within tree_base). (Default is
+True.)
+.TP
+.I ignore_base = False
+If set to True, gad ignores the given tree_base and only looks at the files and directories \fIwithin\fP tree_base. (Default is False.)
+.TP
+.I ignore_paths = ['proj/external', 'somewhere/else']
+List of paths below tree_base that should be ignored.
+.TP
+.I ignore_elements = ['.svn']
+List of directory or file names that should be ignored. This is applied
+throughout the tree, not only at a specific path position. If you only want
+to ignore a file at a specific position, use \fIignore_paths\fP instead.
+
+.SH SEE ALSO
+\fIgad\fP(8)
+
+.SH AUTHOR
+.B gad
+and this manual page were written by Fabian Knittel and put under the GNU GPL;
+either version 2, or (at your option) any later version.
