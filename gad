@@ -30,6 +30,7 @@ import grp
 import pwd
 import stat
 import posix1e
+import os.path
 
 
 debug = True
@@ -77,8 +78,11 @@ class TreeModifier(object):
 
     def apply(self, perm_handler):
         if not self.ignore_base:
-            perm_handler.assert_dir_perms(self.tree_base)
-        if self.recursive:
+            if os.path.isdir(self.tree_base):
+                perm_handler.assert_dir_perms(self.tree_base)
+            else:
+                perm_handler.assert_file_perms(self.tree_base)
+        if self.recursive and os.path.isdir(self.tree_base):
             for root, dirs, files in os.walk(self.tree_base):
                 self.filter_ignored_paths(root, dirs)
                 self.filter_ignored_paths(root, files)
