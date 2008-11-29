@@ -36,517 +36,517 @@ debug = True
 simulate = False
 
 def log_dbg(str):
-	global debug
-	if debug:
-		sys.stderr.write('gad: debug: %s\n' % str)
+    global debug
+    if debug:
+        sys.stderr.write('gad: debug: %s\n' % str)
 
 def set_log_dbg(flag):
-	global debug
-	debug = flag
+    global debug
+    debug = flag
 
 def set_simulate(flag):
-	global simulate
-	simulate = flag
+    global simulate
+    simulate = flag
 
 class TreeModifier(object):
-	def __init__(self, *args, **kwargs):
-		self.tree_base = kwargs['tree_base']
-		self.ignore_paths = kwargs['ignore_paths']
-		self.ignore_elements = kwargs['ignore_elements']
-		self.ignore_links = kwargs.get('ignore_links', True)
-		self.ignore_base = kwargs.get('ignore_base', False)
-		self.recursive = kwargs.get('recursive', True)
+    def __init__(self, *args, **kwargs):
+        self.tree_base = kwargs['tree_base']
+        self.ignore_paths = kwargs['ignore_paths']
+        self.ignore_elements = kwargs['ignore_elements']
+        self.ignore_links = kwargs.get('ignore_links', True)
+        self.ignore_base = kwargs.get('ignore_base', False)
+        self.recursive = kwargs.get('recursive', True)
 
-	def is_path_ignored(self, path):
-		"""Determines whether the passed path matches an ignored directory
-		or is a symbolic link (and we ignore symbolic links)."""
-		if self.ignore_links and os.path.islink(path):
-			return True
-		for idir in self.ignore_paths:
-			ipath = os.path.join(self.tree_base, idir)
-			if ipath == path:
-				return True
-		return False
+    def is_path_ignored(self, path):
+        """Determines whether the passed path matches an ignored directory
+        or is a symbolic link (and we ignore symbolic links)."""
+        if self.ignore_links and os.path.islink(path):
+            return True
+        for idir in self.ignore_paths:
+            ipath = os.path.join(self.tree_base, idir)
+            if ipath == path:
+                return True
+        return False
 
-	def filter_ignored_paths(self, root_path, names):
-		"""Filters out the ignored paths."""
-		for name in names[:]:
-			if name in self.ignore_elements or \
-					self.is_path_ignored(os.path.join(root_path, name)):
-				names.remove(name)
+    def filter_ignored_paths(self, root_path, names):
+        """Filters out the ignored paths."""
+        for name in names[:]:
+            if name in self.ignore_elements or \
+                    self.is_path_ignored(os.path.join(root_path, name)):
+                names.remove(name)
 
-	def apply(self, perm_handler):
-		if not self.ignore_base:
-			perm_handler.assert_dir_perms(self.tree_base)
-		if self.recursive:
-			for root, dirs, files in os.walk(self.tree_base):
-				self.filter_ignored_paths(root, dirs)
-				self.filter_ignored_paths(root, files)
+    def apply(self, perm_handler):
+        if not self.ignore_base:
+            perm_handler.assert_dir_perms(self.tree_base)
+        if self.recursive:
+            for root, dirs, files in os.walk(self.tree_base):
+                self.filter_ignored_paths(root, dirs)
+                self.filter_ignored_paths(root, files)
 
-				for name in files:
-					path = os.path.join(root, name)
-					perm_handler.assert_file_perms(path)
+                for name in files:
+                    path = os.path.join(root, name)
+                    perm_handler.assert_file_perms(path)
 
-				for name in dirs:
-					path = os.path.join(root, name)
-					perm_handler.assert_dir_perms(path)
+                for name in dirs:
+                    path = os.path.join(root, name)
+                    perm_handler.assert_dir_perms(path)
 
 
 class StackedPermHandler(object):
-	def __init__(self, handlers = None):
-		if handlers is None:
-			self.handlers = []
-		else:
-			self.handlers = handlers
+    def __init__(self, handlers = None):
+        if handlers is None:
+            self.handlers = []
+        else:
+            self.handlers = handlers
 
-	def append(self, handler):
-		self.handlers.append(handler)
+    def append(self, handler):
+        self.handlers.append(handler)
 
-	def assert_file_perms(self, path):
-		for handler in self.handlers:
-			handler.assert_file_perms(path)
+    def assert_file_perms(self, path):
+        for handler in self.handlers:
+            handler.assert_file_perms(path)
 
-	def assert_dir_perms(self, path):
-		for handler in self.handlers:
-			handler.assert_dir_perms(path)
+    def assert_dir_perms(self, path):
+        for handler in self.handlers:
+            handler.assert_dir_perms(path)
 
 class AssertUserOwnerInGroup(object):
-	"""
-	Makes sure that the file owner belongs to a certain group. Otherwise the
-	files are switched to a safe owner.
-	"""
-	def __init__(self, *args, **kwargs):
-		self.member_uids = map(lambda user: pwd.getpwnam(user).pw_uid,
-				grp.getgrnam(kwargs['group']).gr_mem)
-		self.safe_uid = pwd.getpwnam(kwargs['safe_user']).pw_uid
+    """
+    Makes sure that the file owner belongs to a certain group. Otherwise the
+    files are switched to a safe owner.
+    """
+    def __init__(self, *args, **kwargs):
+        self.member_uids = map(lambda user: pwd.getpwnam(user).pw_uid,
+                grp.getgrnam(kwargs['group']).gr_mem)
+        self.safe_uid = pwd.getpwnam(kwargs['safe_user']).pw_uid
 
-	def assert_user_owner_in_group(self, path):
-		global simulate
-		si = os.stat(path)
-		if si.st_uid != self.safe_uid and not si.st_uid in self.member_uids:
-			log_dbg("Changing uid of %s from %d to %d" % (path, si.st_uid,
-					self.safe_uid))
-			if not simulate:
-				os.chown(path, self.safe_uid, -1)
+    def assert_user_owner_in_group(self, path):
+        global simulate
+        si = os.stat(path)
+        if si.st_uid != self.safe_uid and not si.st_uid in self.member_uids:
+            log_dbg("Changing uid of %s from %d to %d" % (path, si.st_uid,
+                    self.safe_uid))
+            if not simulate:
+                os.chown(path, self.safe_uid, -1)
 
-	assert_file_perms = assert_user_owner_in_group
-	assert_dir_perms = assert_user_owner_in_group
+    assert_file_perms = assert_user_owner_in_group
+    assert_dir_perms = assert_user_owner_in_group
 
 class AssertGroupOwner(object):
-	"""
-	Makes sure that all files and directories are owned by a specified
-	group.
-	"""
-	def __init__(self, *args, **kwargs):
-		self.gid = grp.getgrnam(kwargs['owner']).gr_gid
+    """
+    Makes sure that all files and directories are owned by a specified
+    group.
+    """
+    def __init__(self, *args, **kwargs):
+        self.gid = grp.getgrnam(kwargs['owner']).gr_gid
 
-	def assert_group_owner(self, path):
-		global simulate
-		si = os.stat(path)
-		if si.st_gid != self.gid:
-			log_dbg("Changing gid of %s from %d to %d" % (path, si.st_gid,
-					self.gid))
-			if not simulate:
-				os.chown(path, -1, self.gid)
+    def assert_group_owner(self, path):
+        global simulate
+        si = os.stat(path)
+        if si.st_gid != self.gid:
+            log_dbg("Changing gid of %s from %d to %d" % (path, si.st_gid,
+                    self.gid))
+            if not simulate:
+                os.chown(path, -1, self.gid)
 
-	assert_file_perms = assert_group_owner
-	assert_dir_perms = assert_group_owner
+    assert_file_perms = assert_group_owner
+    assert_dir_perms = assert_group_owner
 
 
 class AssertDirStickyGroup(object):
-	"""
-	Makes sure that all directories have the group sticky bit set.
-	"""
-	def assert_file_perms(self, path):
-		pass
+    """
+    Makes sure that all directories have the group sticky bit set.
+    """
+    def assert_file_perms(self, path):
+        pass
 
-	def assert_dir_perms(self, path):
-		global simulate
-		si = os.stat(path)
-		if not (stat.S_IMODE(si.st_mode) & stat.S_ISGID):
-			log_dbg("Adding sticky gid to dir %s" % path)
-			if not simulate:
-				os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
+    def assert_dir_perms(self, path):
+        global simulate
+        si = os.stat(path)
+        if not (stat.S_IMODE(si.st_mode) & stat.S_ISGID):
+            log_dbg("Adding sticky gid to dir %s" % path)
+            if not simulate:
+                os.chmod(path, stat.S_IMODE(si.st_mode) | stat.S_ISGID)
 
 def permset_bits(permset):
-	bits = 0
-	for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
-		if permset.test(perm):
-			bits |= perm
-	return bits
+    bits = 0
+    for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+        if permset.test(perm):
+            bits |= perm
+    return bits
 
 def bits_as_permarray(bits):
-	perms = []
-	for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
-		if bits & perm:
-			perms.append(perm)
-	return perms
+    perms = []
+    for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+        if bits & perm:
+            perms.append(perm)
+    return perms
 
 class SimpleAclEntry(object):
-	def __init__(self, acl, entry):
-		self.acl = acl
-		self.entry = entry
+    def __init__(self, acl, entry):
+        self.acl = acl
+        self.entry = entry
 
-	def __str__(self):
-		return "%s in %s" % (str(self.entry), str(self.acl))
+    def __str__(self):
+        return "%s in %s" % (str(self.entry), str(self.acl))
 
-	def get_permbits(self):
-		return permset_bits(self.entry.permset)
+    def get_permbits(self):
+        return permset_bits(self.entry.permset)
 
-	def fix_perms(self, required_perms = [], forbidden_perms = []):
-		for perm in required_perms:
-			if not self.entry.permset.test(perm):
-				self.entry.permset.add(perm)
-				self.acl.modified = True
-		for perm in forbidden_perms:
-			if self.entry.permset.test(perm):
-				self.entry.permset.delete(perm)
-				self.acl.modified = True
+    def fix_perms(self, required_perms = [], forbidden_perms = []):
+        for perm in required_perms:
+            if not self.entry.permset.test(perm):
+                self.entry.permset.add(perm)
+                self.acl.modified = True
+        for perm in forbidden_perms:
+            if self.entry.permset.test(perm):
+                self.entry.permset.delete(perm)
+                self.acl.modified = True
 
-	def set_perms(self, perms = []):
-		for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
-			if perm in perms:
-				if not self.entry.permset.test(perm):
-					self.entry.permset.add(perm)
-					self.acl.modified = True
-			else:
-				if self.entry.permset.test(perm):
-					self.entry.permset.delete(perm)
-					self.acl.modified = True
+    def set_perms(self, perms = []):
+        for perm in [posix1e.ACL_READ, posix1e.ACL_WRITE, posix1e.ACL_EXECUTE]:
+            if perm in perms:
+                if not self.entry.permset.test(perm):
+                    self.entry.permset.add(perm)
+                    self.acl.modified = True
+            else:
+                if self.entry.permset.test(perm):
+                    self.entry.permset.delete(perm)
+                    self.acl.modified = True
 
-	def delete(self):
-		self.acl.acl.delete_entry(self.entry)
-		self.acl.modified = True
+    def delete(self):
+        self.acl.acl.delete_entry(self.entry)
+        self.acl.modified = True
 
-	def get_tag_type(self):
-		return self.entry.tag_type
-	def set_tag_type(self, tag_type):
-		self.entry.tag_type = tag_type
-	tag_type = property(get_tag_type, set_tag_type)
+    def get_tag_type(self):
+        return self.entry.tag_type
+    def set_tag_type(self, tag_type):
+        self.entry.tag_type = tag_type
+    tag_type = property(get_tag_type, set_tag_type)
 
-	def get_qualifier(self):
-		return self.entry.qualifier
-	def set_qualifier(self, qualifier):
-		self.entry.qualifier = qualifier
-	qualifier = property(get_qualifier, set_qualifier)
+    def get_qualifier(self):
+        return self.entry.qualifier
+    def set_qualifier(self, qualifier):
+        self.entry.qualifier = qualifier
+    qualifier = property(get_qualifier, set_qualifier)
 
-	def get_permset(self):
-		return self.entry.permset
-	def set_permset(self, permset):
-		self.entry.permset = permset
-	permset = property(get_permset, set_permset)
+    def get_permset(self):
+        return self.entry.permset
+    def set_permset(self, permset):
+        self.entry.permset = permset
+    permset = property(get_permset, set_permset)
 
 class SimpleAcl(object):
-	def __init__(self, acl):
-		self.acl = acl
-		self.modified = False
+    def __init__(self, acl):
+        self.acl = acl
+        self.modified = False
 
-	def entries(self):
-		for entry in self.acl:
-			yield SimpleAclEntry(self, entry)
+    def entries(self):
+        for entry in self.acl:
+            yield SimpleAclEntry(self, entry)
 
-	def is_modified(self):
-		return self.modified
+    def is_modified(self):
+        return self.modified
 
-	def _create_entry(self, type):
-		entry = posix1e.Entry(self.acl)
-		entry.tag_type = type
-		self.modified = True
-		return SimpleAclEntry(self, entry)
+    def _create_entry(self, type):
+        entry = posix1e.Entry(self.acl)
+        entry.tag_type = type
+        self.modified = True
+        return SimpleAclEntry(self, entry)
 
-	def _get_entry(self, type, qual):
-		for entry in self.acl:
-			if entry.tag_type == type \
-					and entry.qualifier == qual:
-				return SimpleAclEntry(self, entry)
-		return None
+    def _get_entry(self, type, qual):
+        for entry in self.acl:
+            if entry.tag_type == type \
+                    and entry.qualifier == qual:
+                return SimpleAclEntry(self, entry)
+        return None
 
-	def has_group(self, gid):
-		return self._get_entry(posix1e.ACL_GROUP, gid) is not None
+    def has_group(self, gid):
+        return self._get_entry(posix1e.ACL_GROUP, gid) is not None
 
-	def get_group(self, gid):
-		entry = self._get_entry(posix1e.ACL_GROUP, gid)
-		if entry is None:
-			entry = self._create_entry(posix1e.ACL_GROUP)
-			entry.qualifier = gid
-		return entry
-
-
-	def _get_entry_obj(self, type):
-		for entry in self.acl:
-			if entry.tag_type == type:
-				return SimpleAclEntry(self, entry)
-		return None
-
-	def get_user_obj(self):
-		entry = self._get_entry_obj(posix1e.ACL_USER_OBJ)
-		if entry is None:
-			entry = self._create_entry(posix1e.ACL_USER_OBJ)
-		return entry
-
-	def get_group_obj(self):
-		entry = self._get_entry_obj(posix1e.ACL_GROUP_OBJ)
-		if entry is None:
-			entry = self._create_entry(posix1e.ACL_GROUP_OBJ)
-		return entry
-
-	def get_other(self):
-		entry = self._get_entry_obj(posix1e.ACL_OTHER)
-		if entry is None:
-			entry = self._create_entry(posix1e.ACL_OTHER)
-		return entry
-
-	def get_mask(self):
-		entry = self._get_entry_obj(posix1e.ACL_MASK)
-		if entry is None:
-			entry = self._create_entry(posix1e.ACL_MASK)
-		return entry
+    def get_group(self, gid):
+        entry = self._get_entry(posix1e.ACL_GROUP, gid)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_GROUP)
+            entry.qualifier = gid
+        return entry
 
 
-	def _filter_entries(self, type, quals):
-		for entry in self.acl:
-			if entry.tag_type == type:
-				if entry.qualifier not in quals:
-					sentry = SimpleAclEntry(self, entry)
-					log_dbg("Deleting %s" % sentry)
-					sentry.delete()
+    def _get_entry_obj(self, type):
+        for entry in self.acl:
+            if entry.tag_type == type:
+                return SimpleAclEntry(self, entry)
+        return None
 
-	def filter_groups(self, gids = []):
-		self._filter_entries(posix1e.ACL_GROUP, gids)
+    def get_user_obj(self):
+        entry = self._get_entry_obj(posix1e.ACL_USER_OBJ)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_USER_OBJ)
+        return entry
 
-	def filter_users(self, uids = []):
-		self._filter_entries(posix1e.ACL_USER, uids)
+    def get_group_obj(self):
+        entry = self._get_entry_obj(posix1e.ACL_GROUP_OBJ)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_GROUP_OBJ)
+        return entry
 
-	def recalc_to_mask(self):
-		"""Adjust all permissions to the effective permissions as dictacted by
-		the mask."""
-		mask = self._get_entry_obj(posix1e.ACL_MASK)
-		if mask is None:
-			# There is no mask, so all perms are the effective perms.
-			return
+    def get_other(self):
+        entry = self._get_entry_obj(posix1e.ACL_OTHER)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_OTHER)
+        return entry
 
-		# Calculate which perms are masked out by the ACL_MASK entry.
-		forbidden_perms = bits_as_permarray(~mask.get_permbits())
+    def get_mask(self):
+        entry = self._get_entry_obj(posix1e.ACL_MASK)
+        if entry is None:
+            entry = self._create_entry(posix1e.ACL_MASK)
+        return entry
 
-		# Remove the masked-out permissions.
-		for entry in self.entries():
-			# Ignore the mask entry (obviously). Also ignore the user object
-			# and other, as they aren't influenced by the mask.
-			if entry.tag_type == posix1e.ACL_MASK or \
-					entry.tag_type == posix1e.ACL_USER_OBJ or \
-					entry.tag_type == posix1e.ACL_OTHER:
-				continue
-			entry.fix_perms(forbidden_perms = forbidden_perms)
 
-	def calc_mask(self):
-		"""Recalculates the permission mask and returns whether the mask
-		actually changed."""
-		old_mask = self.get_mask().get_permbits()
-		self.acl.calc_mask()
-		if old_mask != self.get_mask().get_permbits():
-			self.modified = True
-			return True
-		return False
+    def _filter_entries(self, type, quals):
+        for entry in self.acl:
+            if entry.tag_type == type:
+                if entry.qualifier not in quals:
+                    sentry = SimpleAclEntry(self, entry)
+                    log_dbg("Deleting %s" % sentry)
+                    sentry.delete()
 
-	def valid(self):
-		return self.acl.valid()
+    def filter_groups(self, gids = []):
+        self._filter_entries(posix1e.ACL_GROUP, gids)
+
+    def filter_users(self, uids = []):
+        self._filter_entries(posix1e.ACL_USER, uids)
+
+    def recalc_to_mask(self):
+        """Adjust all permissions to the effective permissions as dictacted by
+        the mask."""
+        mask = self._get_entry_obj(posix1e.ACL_MASK)
+        if mask is None:
+            # There is no mask, so all perms are the effective perms.
+            return
+
+        # Calculate which perms are masked out by the ACL_MASK entry.
+        forbidden_perms = bits_as_permarray(~mask.get_permbits())
+
+        # Remove the masked-out permissions.
+        for entry in self.entries():
+            # Ignore the mask entry (obviously). Also ignore the user object
+            # and other, as they aren't influenced by the mask.
+            if entry.tag_type == posix1e.ACL_MASK or \
+                    entry.tag_type == posix1e.ACL_USER_OBJ or \
+                    entry.tag_type == posix1e.ACL_OTHER:
+                continue
+            entry.fix_perms(forbidden_perms = forbidden_perms)
+
+    def calc_mask(self):
+        """Recalculates the permission mask and returns whether the mask
+        actually changed."""
+        old_mask = self.get_mask().get_permbits()
+        self.acl.calc_mask()
+        if old_mask != self.get_mask().get_permbits():
+            self.modified = True
+            return True
+        return False
+
+    def valid(self):
+        return self.acl.valid()
 
 class SimpleAccessAcl(SimpleAcl):
-	def __init__(self, file_path):
-		self.path = file_path
-		acl = posix1e.ACL(file = self.path)
-		super(SimpleAccessAcl, self).__init__(acl)
+    def __init__(self, file_path):
+        self.path = file_path
+        acl = posix1e.ACL(file = self.path)
+        super(SimpleAccessAcl, self).__init__(acl)
 
-	def __str__(self):
-		return "access ACL for \"%s\"" % self.path
+    def __str__(self):
+        return "access ACL for \"%s\"" % self.path
 
-	def apply(self):
-		global simulate
-		if not simulate:
-			self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
-		self.modified = False
+    def apply(self):
+        global simulate
+        if not simulate:
+            self.acl.applyto(self.path, posix1e.ACL_TYPE_ACCESS)
+        self.modified = False
 
 class SimpleDefaultAcl(SimpleAcl):
-	def __init__(self, file_path):
-		self.path = file_path
-		acl = posix1e.ACL(filedef = self.path)
-		super(SimpleDefaultAcl, self).__init__(acl)
+    def __init__(self, file_path):
+        self.path = file_path
+        acl = posix1e.ACL(filedef = self.path)
+        super(SimpleDefaultAcl, self).__init__(acl)
 
-	def __str__(self):
-		return "default ACL for \"%s\"" % self.path
+    def __str__(self):
+        return "default ACL for \"%s\"" % self.path
 
-	def apply(self):
-		global simulate
-		if not simulate:
-			self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
-		self.modified = False
+    def apply(self):
+        global simulate
+        if not simulate:
+            self.acl.applyto(self.path, posix1e.ACL_TYPE_DEFAULT)
+        self.modified = False
 
 class StackedAccessAclHandlers(object):
-	"""
-	"""
-	def __init__(self, handlers = None):
-		if handlers is None:
-			self.handlers = []
-		else:
-			self.handlers = handlers
+    """
+    """
+    def __init__(self, handlers = None):
+        if handlers is None:
+            self.handlers = []
+        else:
+            self.handlers = handlers
 
-	def append(self, handler):
-		self.handlers.append(handler)
+    def append(self, handler):
+        self.handlers.append(handler)
 
-	def assert_file_perms(self, path):
-		curr_acl = SimpleAccessAcl(path)
-		curr_acl.recalc_to_mask()
-		updated = False
-		for handler in self.handlers:
-			updated |= handler.assert_acl_file_perms(curr_acl)
-		if updated:
-			log_dbg("updated ACL for file %s" % path)
-			curr_acl.apply()
+    def assert_file_perms(self, path):
+        curr_acl = SimpleAccessAcl(path)
+        curr_acl.recalc_to_mask()
+        updated = False
+        for handler in self.handlers:
+            updated |= handler.assert_acl_file_perms(curr_acl)
+        if updated:
+            log_dbg("updated ACL for file %s" % path)
+            curr_acl.apply()
 
-	def assert_dir_perms(self, path):
-		curr_acl = SimpleAccessAcl(path)
-		curr_acl.recalc_to_mask()
-		updated = False
-		for handler in self.handlers:
-			updated |= handler.assert_acl_file_perms(curr_acl)
-			updated |= handler.assert_acl_dir_perms(curr_acl)
-		if updated:
-			log_dbg("updated ACL for dir %s" % path)
-			curr_acl.apply()
+    def assert_dir_perms(self, path):
+        curr_acl = SimpleAccessAcl(path)
+        curr_acl.recalc_to_mask()
+        updated = False
+        for handler in self.handlers:
+            updated |= handler.assert_acl_file_perms(curr_acl)
+            updated |= handler.assert_acl_dir_perms(curr_acl)
+        if updated:
+            log_dbg("updated ACL for dir %s" % path)
+            curr_acl.apply()
 
 class StackedDefaultAclHandlers(object):
-	"""
-	"""
-	def __init__(self, handlers = None):
-		if handlers is None:
-			self.handlers = []
-		else:
-			self.handlers = handlers
+    """
+    """
+    def __init__(self, handlers = None):
+        if handlers is None:
+            self.handlers = []
+        else:
+            self.handlers = handlers
 
-	def append(self, handler):
-		self.handlers.append(handler)
+    def append(self, handler):
+        self.handlers.append(handler)
 
-	def assert_file_perms(self, path):
-		pass
+    def assert_file_perms(self, path):
+        pass
 
-	def assert_dir_perms(self, path):
-		curr_acl = SimpleDefaultAcl(path)
-		curr_acl.recalc_to_mask()
-		updated = False
-		for handler in self.handlers:
-			updated |= handler.assert_acl_file_perms(curr_acl)
-			updated |= handler.assert_acl_dir_perms(curr_acl)
-		if updated:
-			log_dbg("updated default ACL for dir %s (%d)" % (path,
-					curr_acl.valid()))
-			curr_acl.apply()
+    def assert_dir_perms(self, path):
+        curr_acl = SimpleDefaultAcl(path)
+        curr_acl.recalc_to_mask()
+        updated = False
+        for handler in self.handlers:
+            updated |= handler.assert_acl_file_perms(curr_acl)
+            updated |= handler.assert_acl_dir_perms(curr_acl)
+        if updated:
+            log_dbg("updated default ACL for dir %s (%d)" % (path,
+                    curr_acl.valid()))
+            curr_acl.apply()
 
 class AssertBasicValidAcl(object):
-	def assert_acl_file_perms(self, curr_acl):
-		return False
+    def assert_acl_file_perms(self, curr_acl):
+        return False
 
-	def assert_acl_dir_perms(self, curr_acl):
-		if curr_acl.valid():
-			return False
+    def assert_acl_dir_perms(self, curr_acl):
+        if curr_acl.valid():
+            return False
 
-		entry = curr_acl.get_user_obj()
-		entry.permset.add(posix1e.ACL_READ)
-		entry.permset.add(posix1e.ACL_WRITE)
-		entry.permset.add(posix1e.ACL_EXECUTE)
+        entry = curr_acl.get_user_obj()
+        entry.permset.add(posix1e.ACL_READ)
+        entry.permset.add(posix1e.ACL_WRITE)
+        entry.permset.add(posix1e.ACL_EXECUTE)
 
-		curr_acl.get_group_obj()
-		curr_acl.get_other()
-		return True
+        curr_acl.get_group_obj()
+        curr_acl.get_other()
+        return True
 
 class AssertWriteAndReadGroups(object):
-	"""
-	Makes sure that the owning group has write access and the specified rgroups
-	have read access (as well as directory listing permissions).
+    """
+    Makes sure that the owning group has write access and the specified rgroups
+    have read access (as well as directory listing permissions).
 
-	Apropriately set the default ACLs on the directories.
-	"""
-	def __init__(self, *args, **kwargs):
-		if 'rgroups' in kwargs and kwargs['rgroups'] is not None:
-			self.rgids = map(lambda gname: grp.getgrnam(gname).gr_gid,
-					kwargs['rgroups'])
-		else:
-			self.rgids = []
+    Apropriately set the default ACLs on the directories.
+    """
+    def __init__(self, *args, **kwargs):
+        if 'rgroups' in kwargs and kwargs['rgroups'] is not None:
+            self.rgids = map(lambda gname: grp.getgrnam(gname).gr_gid,
+                    kwargs['rgroups'])
+        else:
+            self.rgids = []
 
-	def assert_acl_file_perms(self, curr_acl):
-		curr_acl.filter_groups(self.rgids)
-		curr_acl.filter_users([])
+    def assert_acl_file_perms(self, curr_acl):
+        curr_acl.filter_groups(self.rgids)
+        curr_acl.filter_users([])
 
-		# What can the owner do? Use the owner's permissions as a permission
-		# mask for the write and read groups.
-		user_obj_entry = curr_acl.get_user_obj()
-		wgroup_perms = []
-		rgroup_perms = []
-		if user_obj_entry.permset.test(posix1e.ACL_READ):
-			wgroup_perms.append(posix1e.ACL_READ)
-			rgroup_perms.append(posix1e.ACL_READ)
-		if user_obj_entry.permset.test(posix1e.ACL_EXECUTE):
-			wgroup_perms.append(posix1e.ACL_EXECUTE)
-			rgroup_perms.append(posix1e.ACL_EXECUTE)
-		if user_obj_entry.permset.test(posix1e.ACL_WRITE):
-			# Note: Read-only groups do not get write permission.
-			wgroup_perms.append(posix1e.ACL_WRITE)
+        # What can the owner do? Use the owner's permissions as a permission
+        # mask for the write and read groups.
+        user_obj_entry = curr_acl.get_user_obj()
+        wgroup_perms = []
+        rgroup_perms = []
+        if user_obj_entry.permset.test(posix1e.ACL_READ):
+            wgroup_perms.append(posix1e.ACL_READ)
+            rgroup_perms.append(posix1e.ACL_READ)
+        if user_obj_entry.permset.test(posix1e.ACL_EXECUTE):
+            wgroup_perms.append(posix1e.ACL_EXECUTE)
+            rgroup_perms.append(posix1e.ACL_EXECUTE)
+        if user_obj_entry.permset.test(posix1e.ACL_WRITE):
+            # Note: Read-only groups do not get write permission.
+            wgroup_perms.append(posix1e.ACL_WRITE)
 
-		# Group owner (write group) ...
-		entry = curr_acl.get_group_obj()
-		entry.set_perms(perms = wgroup_perms)
+        # Group owner (write group) ...
+        entry = curr_acl.get_group_obj()
+        entry.set_perms(perms = wgroup_perms)
 
-		# Read groups ...
-		for rgid in self.rgids:
-			entry = curr_acl.get_group(rgid)
-			entry.set_perms(perms = rgroup_perms)
+        # Read groups ...
+        for rgid in self.rgids:
+            entry = curr_acl.get_group(rgid)
+            entry.set_perms(perms = rgroup_perms)
 
-		# Others should not be able to do anything.
-		entry = curr_acl.get_other()
-		entry.set_perms([])
+        # Others should not be able to do anything.
+        entry = curr_acl.get_other()
+        entry.set_perms([])
 
-		if curr_acl.is_modified():
-			curr_acl.calc_mask()
-		return curr_acl.is_modified()
+        if curr_acl.is_modified():
+            curr_acl.calc_mask()
+        return curr_acl.is_modified()
 
-	def assert_acl_dir_perms(self, curr_acl):
-		return False
+    def assert_acl_dir_perms(self, curr_acl):
+        return False
 
 
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
-		ignore_elements = [], ignore_links = True, safe_user = None,
-		recursive = True, ignore_base = False):
-	sph = StackedPermHandler()
-	if safe_user is not None:
-		sph.append(AssertUserOwnerInGroup(group = wgroup,
-				safe_user = safe_user))
-	sph.append(AssertGroupOwner(owner = wgroup))
-	sph.append(AssertDirStickyGroup())
+        ignore_elements = [], ignore_links = True, safe_user = None,
+        recursive = True, ignore_base = False):
+    sph = StackedPermHandler()
+    if safe_user is not None:
+        sph.append(AssertUserOwnerInGroup(group = wgroup,
+                safe_user = safe_user))
+    sph.append(AssertGroupOwner(owner = wgroup))
+    sph.append(AssertDirStickyGroup())
 
-	sdah = StackedDefaultAclHandlers()
-	sdah.append(AssertBasicValidAcl())
-	awarg = AssertWriteAndReadGroups(rgroups = rgroups)
-	sdah.append(awarg)
+    sdah = StackedDefaultAclHandlers()
+    sdah.append(AssertBasicValidAcl())
+    awarg = AssertWriteAndReadGroups(rgroups = rgroups)
+    sdah.append(awarg)
 
-	sph.append(sdah)
-	saah = StackedAccessAclHandlers()
-	saah.append(awarg)
-	sph.append(saah)
+    sph.append(sdah)
+    saah = StackedAccessAclHandlers()
+    saah.append(awarg)
+    sph.append(saah)
 
-	tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
-			ignore_elements = ignore_elements, ignore_links = ignore_links,
-			ignore_base = ignore_base, recursive = recursive)
-	tm.apply(sph)
+    tm = TreeModifier(tree_base = tree_base, ignore_paths = ignore_paths,
+            ignore_elements = ignore_elements, ignore_links = ignore_links,
+            ignore_base = ignore_base, recursive = recursive)
+    tm.apply(sph)
 
 def process_config_file(file):
-	# Dictionary of all methods available to the configuration file.
-	available = {
-			'make_group_accessable': make_group_accessable,
-			'set_log_dbg': set_log_dbg,
-			'set_simulate': set_simulate,
-			}
-	execfile(file, available)
+    # Dictionary of all methods available to the configuration file.
+    available = {
+            'make_group_accessable': make_group_accessable,
+            'set_log_dbg': set_log_dbg,
+            'set_simulate': set_simulate,
+            }
+    execfile(file, available)
 
 if __name__ == '__main__':
-	process_config_file(sys.argv[1])
+    process_config_file(sys.argv[1])
 
-# vim: set ts=4:
+# vim:set tabstop=8 softtabstop=4 shiftwidth=4 et:
