@@ -4,7 +4,7 @@ Group accessable directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.3.0
+Version 0.3.1
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -31,10 +31,8 @@ import pwd
 import stat
 import posix1e
 import os.path
+from optparse import OptionParser
 
-
-debug = True
-simulate = False
 
 def log_dbg(str):
     global debug
@@ -519,6 +517,10 @@ class AssertWriteAndReadGroups(object):
 def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
         ignore_elements = [], ignore_links = True, safe_user = None,
         recursive = True, ignore_base = False):
+    global simulate
+    if simulate:
+        log_dbg('only simulating commands for %s' % tree_base)
+
     sph = StackedPermHandler()
     if safe_user is not None:
         sph.append(AssertUserOwnerInGroup(group = wgroup,
@@ -542,6 +544,7 @@ def make_group_accessable(tree_base, wgroup, rgroups = [], ignore_paths = [],
     tm.apply(sph)
 
 def process_config_file(file):
+    log_dbg('processing %s' % file)
     # Dictionary of all methods available to the configuration file.
     available = {
             'make_group_accessable': make_group_accessable,
@@ -550,7 +553,29 @@ def process_config_file(file):
             }
     execfile(file, available)
 
+def main():
+    global debug
+    global simulate
+
+    parser = OptionParser("usage: %prog [options] config-files..")
+    parser.add_option("-d", "--debug",
+            action = "store_true", dest = "debug",
+            help = "enable debugging output",
+            default = False)
+    parser.add_option("-s", "--simulate",
+            action = "store_true", dest = "simulate",
+            help = "only simulate the actions",
+            default = False)
+    (options, args) = parser.parse_args()
+    if len(args) == 0:
+        parser.error("need at least one configuration file to run")
+    simulate = options.simulate
+    debug = options.debug
+
+    for conf_file in args:
+        process_config_file(conf_file)
+
 if __name__ == '__main__':
-    process_config_file(sys.argv[1])
+    main()
 
 # vim:set tabstop=8 softtabstop=4 shiftwidth=4 et:
