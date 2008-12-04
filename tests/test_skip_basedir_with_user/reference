@@ -1,0 +1,116 @@
+PATH: base
+user owner: attic
+group owner: info_protokolle
+group sticky bit
+default ACL:
+user::rwx
+user:nobody:--x
+group::rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+user:nobody:--x
+group::rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+PATH: base/b1
+user owner: attic
+group owner: info_protokolle
+group sticky bit
+default ACL:
+user::rwx
+user:nobody:rwx
+group::rwx
+group:fsusers:rwx
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+user:nobody:rwx
+group::rwx
+group:fsusers:rwx
+mask::rwx
+other::---
+
+PATH: base/b1/c1
+user owner: attic
+group owner: info_protokolle
+group sticky bit
+default ACL:
+user::rwx
+user:nobody:rwx
+group::rwx
+group:fsusers:rwx
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+user:nobody:rwx
+group::rwx
+group:fsusers:rwx
+mask::rwx
+other::---
+
+PATH: base/b1/c2
+user owner: nobody
+group owner: info_protokolle
+access ACL:
+user::rw-
+group::rw-
+group:fsusers:rw-
+mask::rw-
+other::---
+
+PATH: base/b2
+user owner: attic
+group owner: info_protokolle
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+mask::rwx
+other::---
+
+PATH: base/b2/c1
+user owner: attic
+group owner: info_protokolle
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+mask::rwx
+other::---
+
+PATH: base/b2/c2
+user owner: attic
+group owner: info_protokolle
+access ACL:
+user::rw-
+group::rw-
+group:fsusers:r--
+mask::rw-
+other::---
+

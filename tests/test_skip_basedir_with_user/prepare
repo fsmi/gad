@@ -1,0 +1,18 @@
+#!/bin/sh -e
+
+rm -rf base
+mkdir base
+
+mkdir base/b1
+mkdir base/b1/c1
+touch base/b1/c2
+
+mkdir base/b2
+mkdir base/b2/c1
+touch base/b2/c2
+
+setfacl -bR base
+chmod -R u=rwX,g=,o= base
+chmod -R a-s base
+chown -R root:users base
+chown nobody base/b1/c2

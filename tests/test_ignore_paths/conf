@@ -1,0 +1,3 @@
+make_tree_accessable(tree_base = 'base', rwxgroups = ['adm'],
+	safe_group = 'adm', safe_user = 'attic',
+	ignore_paths = ['b1', 'b2'])

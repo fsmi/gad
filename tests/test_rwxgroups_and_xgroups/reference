@@ -1,0 +1,51 @@
+PATH: base
+user owner: fk
+group owner: src
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:adm:rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:adm:rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+PATH: base/b1
+user owner: fk
+group owner: src
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:adm:rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:adm:rwx
+group:fsusers:--x
+mask::rwx
+other::---
+
+PATH: base/b2
+user owner: fk
+group owner: src
+access ACL:
+user::rw-
+group::rw-
+group:adm:rw-
+group:fsusers:---
+mask::rw-
+other::---
+
