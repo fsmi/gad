@@ -1,3 +1,12 @@
+gad (0.4.0-1) fsmi-etch; urgency=low
+
+  * New upstream release.
+  * Install gad.conf as example, instead of as /etc/gad.conf, as there's no
+    concept of a central configuration file and the file needs lots of work
+    by the user.
+
+ -- Fabian Knittel <fabian.knittel@fsmi.uni-karlsruhe.de>  Fri, 05 Dec 2008 22:20:16 +0100
+
 gad (0.3.0-1) fsmi-etch; urgency=low
 
   * Initial release

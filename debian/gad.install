@@ -1,4 +1,4 @@
 gad usr/sbin
 gad.8 usr/share/man/man8
-gad.conf etc/gad.conf
 gad.conf.5 usr/share/man/man5
+simpleacl.py usr/share/python-support/gad
