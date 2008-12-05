@@ -1,55 +1,92 @@
-.TH GAD.CONF 5 "November 30, 2008"
+.TH GAD.CONF 5 "December 05, 2008"
 
 .SH NAME
 .B gad.conf
 \- configure directories for gad
 
 .SH DESCRIPTION
-.B /etc/gad.conf
-is a configuration file for gad. It uses a python-style format and may contain
-global configuration statements and statements affecting a specific directory
-or directory tree. The configuration statements look like python methods and
-take parameters.
+\fB/etc/gad.conf\fP is a configuration file for gad. It uses a python-style
+format and may contain global configuration statements and statements affecting
+a specific directory or directory tree. The configuration statements look like
+python methods and take parameters.
 
 .SH GLOBAL OPTIONS
 .TP
-.I set_log_dbg(True|False)
+\fBset_log_dbg(\fP\fITrue|False\fP\fB)\fP
 Disable or enable debug logging to standard error. (Default is enabled.)
 .TP
-.I set_simulate(True|False)
+\fBset_simulate(\fP\fITrue|False\fP\fB)\fP
 Disable or enable simulation mode. In simulation mode, changes are not applied. (Default is disabled.)
 
 .SH DIRECTORY OPTIONS
 All directory options are keyword parameters to method
-.I make_group_accessable(parameters)
+\fBmake_group_accessable(\fP\fIparameters\fP\fB)\fP
 .TP
-.I tree_base = '/directory/base'
+\fBtree_base\fP = \fI'/directory/base'\fP
 Specifies the directory base on which gad will operate.
 .TP
-.I wgroups = ['unix_group_name1', 'unix_group_name2']
-List of groups that should have read and write access.
+\fBxgroups\fP
 .TP
-.I rgroups = ['unix_group_name1', 'unix_group_name2']
-List of groups that should have read-only access.
+\fBwgroups\fP
 .TP
-.I ignore_links = True
+\fBwxgroups\fP
+.TP
+\fBrgroups\fP
+.TP
+\fBrxgroups\fP
+.TP
+\fBrwgroups\fP
+.TP
+\fBrwxgroups\fP = [\fI'unix_group_name1'\fP, \fI'unix_group_name2'\fP]
+List of groups that should have read, write or execution access or a
+combination thereof.
+.TP
+\fBxusers\fP
+.TP
+\fBwusers\fP
+.TP
+\fBwxusers\fP
+.TP
+\fBrusers\fP
+.TP
+\fBrxusers\fP
+.TP
+\fBrwusers\fP
+.TP
+\fBrwxusers\fP = [\fI'unix_user_name1'\fP, \fI'unix_user_name2'\fP]
+List of users that should have read, write or execution access or a
+combination thereof.
+.TP
+\fBsafe_user\fP = \fI'unix_user_name'\fP
+If this option is set, every file/directory user owner is checked against the
+list of allowed users, which consist of users explicitly granted write
+permissions and users who are members of groups with write permission. In case
+the owner does not pass the check, it is changed to the user passed via
+\fBsafe_user\fP.
+.TP
+\fBsafe_group\fP = \fI'unix_group_name'\fP
+If this option is set, every file/directory group owner is checked against the
+list of groups with write permission. In case the owner group does not pass the
+check, it is changed to the group passed via \fBsafe_group\fP.
+.TP
+\fBignore_links\fP = \fITrue\fP
 If set to False, symbolic links are followed. (Default is True.)
 .TP
-.I recursive = True
+\fBrecursive\fP = \fITrue\fP
 If set to False, gad does not recursively descend into the given tree_base
 (i.e. it does not look at files and directories within tree_base). (Default is
 True.)
 .TP
-.I ignore_base = False
+\fBignore_base\fP = \fIFalse\fP
 If set to True, gad ignores the given tree_base and only looks at the files and directories \fIwithin\fP tree_base. (Default is False.)
 .TP
-.I ignore_paths = ['proj/external', 'somewhere/else']
+\fBignore_paths\fP = [\fI'proj/external'\fP, \fI'somewhere/else'\fP]
 List of paths below tree_base that should be ignored.
 .TP
-.I ignore_elements = ['.svn']
+\fBignore_elements\fP = [\fI'.svn'\fP]
 List of directory or file names that should be ignored. This is applied
 throughout the tree, not only at a specific path position. If you only want
-to ignore a file at a specific position, use \fIignore_paths\fP instead.
+to ignore a file at a specific position, use \fBignore_paths\fP instead.
 
 .SH SEE ALSO
 \fIgad\fP(8)
