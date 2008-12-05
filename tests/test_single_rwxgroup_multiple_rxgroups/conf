@@ -1,1 +1,1 @@
-make_tree_accessable(tree_base = 'base', rwxgroups = ['kasse'], rxgroups = ['fsusers', 'kassenpruefer'], safe_group = 'kasse', safe_user = 'attic')
+make_tree_accessible(tree_base = 'base', rwxgroups = ['kasse'], rxgroups = ['fsusers', 'kassenpruefer'], safe_group = 'kasse', safe_user = 'attic')

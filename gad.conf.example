@@ -6,29 +6,29 @@
 # Examples:
 #
 # Assure that directory /usr/src is readable and writable by group 'src'.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'])
 #
 # Same as above, but follow symbolic links.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        ignore_links = False)
 #
 # Same as above, but add group 'adm' to list of writable groups and replace
 # any user or groups owners not member of the listed rwxgroups with 'attic' and
 # 'src'.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src', 'adm'], safe_user = 'attic', safe_group = 'src',
 #        ignore_links = False)
 #
 # Assure that directory /usr/src is readable, writable and executable by group
 # 'src' and readable + executable by group 'adm'.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm'])
 #
 # Same as above, but only affect tree_base, not any sub-directories.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm'],
 #        recursive = False)
@@ -36,26 +36,26 @@
 # Same as above, but only affect sub-directories not the tree_base itsself.
 # (Obviously, if you ignore the base and don't work recursively, there's
 # nothing to do, so ignore_base and non-recursive is mutually exclusive.)
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm'],
 #        ignore_base = True)
 #
 # Assure that directory /usr/src is readable, writable and executable by group
 # 'src' and readable and executable by the groups 'adm' and 'audio'.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm', 'audio'])
 #
 # Same as above, but do not reset the hand-crafted permissions defined on
 # the sub-trees '/usr/src/proj/external' and '/usr/src/somewhere/else'.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm', 'audio'],
 #        ignore_paths = ['proj/external', 'somewhere/else'])
 #
 # Same as above, but ignore all Subversion meta-data directories.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm', 'audio'],
 #        ignore_paths = ['proj/external', 'somewhere/else'],
@@ -63,7 +63,7 @@
 #
 # Same as above, but change the owner user to 'nobody' if the current
 # owner is not member of the writable group.
-#make_tree_accessable(tree_base = '/usr/src',
+#make_tree_accessible(tree_base = '/usr/src',
 #        rwxgroups = ['src'],
 #        rxgroups = ['adm', 'audio'],
 #        ignore_paths = ['proj/external', 'somewhere/else'],

@@ -1,7 +1,7 @@
 .TH GAD 8 "December 05, 2008"
 
 .SH NAME
-\fBgad\fP \- make directories group-accessable
+\fBgad\fP \- make directories group-accessible
 
 .SH SYNOPSIS
 \fBgad\fP [options] configuration-file
@@ -9,14 +9,14 @@
 .SH DESCRIPTION
 .B gad
 ensures that the directories specified in the \fIconfiguration-file\fP are
-accessable and stay accessable by certain ACL groups and / or users.
+accessible and stay accessible by certain ACL groups and / or users.
 The script supports multiple reader, writer and/or executable groups per
 directory. Simple exclude filters are supported as well.
 
 The script is intended for work-group directories with multiple people
 reading and writing to the directory. Default ACLs are used to prevent
 participants (e.g. with a strict umask) from unintentionally creating files or
-directories that are not accessable by everyone in the group. To catch corner
+directories that are not accessible by everyone in the group. To catch corner
 cases where that does not suffice, the script is usually called regularly from
 a cron job.
 
