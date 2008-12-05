@@ -1,3 +1,9 @@
+gad (0.4.1-1) fsmi-etch; urgency=low
+
+  * New upstream release.
+
+ -- Fabian Knittel <fabian.knittel@fsmi.uni-karlsruhe.de>  Sat, 06 Dec 2008 00:16:55 +0100
+
 gad (0.4.0-1) fsmi-etch; urgency=low
 
   * New upstream release.
