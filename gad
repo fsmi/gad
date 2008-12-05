@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
-Group accessable directories - Allows a group of users read and/or write
+Group accessible directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
@@ -384,7 +384,7 @@ def get_groups_members(groups):
     return reduce(lambda x, y: x + y,
             map(lambda gr_nam: grp.getgrnam(gr_nam).gr_mem, groups), [])
 
-def make_tree_accessable(tree_base,
+def make_tree_accessible(tree_base,
         xgroups = [], wgroups = [], wxgroups = [], rgroups = [], rxgroups = [],
         rwgroups = [], rwxgroups = [],
         xusers = [], wusers = [], wxusers = [], rusers = [], rxusers = [],
@@ -452,7 +452,7 @@ def process_config_file(file):
     log_dbg('processing %s' % file)
     # Dictionary of all methods available to the configuration file.
     available = {
-            'make_tree_accessable': make_tree_accessable,
+            'make_tree_accessible': make_tree_accessible,
             'set_log_dbg': set_log_dbg,
             'set_simulate': set_simulate,
             }
