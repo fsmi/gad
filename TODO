@@ -1,5 +1,2 @@
 To do:
  * More flexible ignore-support. (rsync-style?)
- * Support more than one writer group.
- * Support xgroups, rxgroups, wxgroups, rwxgroups -> generic approach
- * Support rusers, xusers, rxusers, wxusers, rwxusers -> enhanced generic approach
