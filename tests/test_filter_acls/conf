@@ -1,0 +1,1 @@
+make_tree_accessible(tree_base = 'base', rwxgroups = ['src'], safe_group = 'src', safe_user = 'fk')

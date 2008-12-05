@@ -1,0 +1,36 @@
+PATH: base
+user owner: fk
+group owner: src
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+other::---
+
+PATH: base/b1
+user owner: fk
+group owner: src
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+other::---
+
+PATH: base/b2
+user owner: fk
+group owner: src
+access ACL:
+user::rw-
+group::rw-
+other::---
+

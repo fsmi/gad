@@ -4,7 +4,7 @@ Group accessible directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
 
-Version 0.4.0
+Version 0.4.1
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
