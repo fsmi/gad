@@ -187,7 +187,6 @@ class SimpleAcl(object):
             if entry.tag_type == type:
                 if entry.qualifier not in quals:
                     sentry = SimpleAclEntry(self, entry)
-                    log_dbg("Deleting %s" % sentry)
                     sentry.delete()
 
     def filter_groups(self, gids = []):
