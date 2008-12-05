@@ -1,0 +1,15 @@
+make_tree_accessable(tree_base = 'base', rwxgroups = ['info_protokolle'],
+	xgroups = ['fsusers'],
+	safe_group = 'info_protokolle', safe_user = 'attic',
+	recursive = False)
+make_tree_accessable(tree_base = 'base', rwxgroups = ['info_protokolle'],
+	safe_group = 'info_protokolle', safe_user = 'attic',
+	ignore_base = True, ignore_paths = ['base/b1', 'base/b2'])
+
+make_tree_accessable(tree_base = 'base/b1',
+	rwxgroups = ['info_protokolle', 'fsusers'],
+	safe_group = 'info_protokolle',
+	safe_user = 'attic')
+make_tree_accessable(tree_base = 'base/b2', rwxgroups = ['info_protokolle'],
+	rxgroups = ['fsusers'], safe_group = 'info_protokolle',
+	safe_user = 'attic')

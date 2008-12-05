@@ -1,19 +1,17 @@
-.TH GAD 8 "November 29, 2008"
+.TH GAD 8 "December 05, 2008"
 
 .SH NAME
-.B gad
-\- make directories group-accessable
+\fBgad\fP \- make directories group-accessable
 
 .SH SYNOPSIS
-.B gad
-configuration-file
+\fBgad\fP [options] configuration-file
 
 .SH DESCRIPTION
 .B gad
 ensures that the directories specified in the \fIconfiguration-file\fP are
-accessable and stay accessable by certain ACL groups.
-The script currently supports a single writer group and an unlimited number
-of read-only groups per directory. Exclude filters are supported as well.
+accessable and stay accessable by certain ACL groups and / or users.
+The script supports multiple reader, writer and/or executable groups per
+directory. Simple exclude filters are supported as well.
 
 The script is intended for work-group directories with multiple people
 reading and writing to the directory. Default ACLs are used to prevent
@@ -23,13 +21,17 @@ cases where that does not suffice, the script is usually called regularly from
 a cron job.
 
 .SH OPTIONS
-There are no options.
+.TP
+\fB\-d\fR, \fB\-\-debug\fR
+activate debugging output.
+.TP
+\fB\-s\fR, \fB\-\-simulate\fR
+only simulate actions, do not actually perform them.
 
 .SH SEE ALSO
 .TP
 \fIgad.conf\fP(8)
 
 .SH AUTHOR
-.B gad
-and this manual page were written by Fabian Knittel and put under the GNU GPL;
-either version 2, or (at your option) any later version.
+\fBgad\fP and this manual page were written by Fabian Knittel and put under the
+GNU GPL; either version 2, or (at your option) any later version.

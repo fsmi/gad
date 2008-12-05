@@ -1,0 +1,46 @@
+PATH: base
+user owner: fk
+group owner: adm
+group sticky bit
+default ACL:
+user::rwx
+user:pkern:rwx
+group::rwx
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+user:pkern:rwx
+group::rwx
+mask::rwx
+other::---
+
+PATH: base/b1
+user owner: pkern
+group owner: adm
+group sticky bit
+default ACL:
+user::rwx
+user:fk:rwx
+group::rwx
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+user:fk:rwx
+group::rwx
+mask::rwx
+other::---
+
+PATH: base/b2
+user owner: fk
+group owner: adm
+access ACL:
+user::rw-
+user:pkern:rw-
+group::rw-
+mask::rw-
+other::---
+

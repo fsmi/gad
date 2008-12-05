@@ -1,0 +1,62 @@
+PATH: base
+user owner: attic
+group owner: kasse
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+group:kassenpruefer:r-x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+group:kassenpruefer:r-x
+mask::rwx
+other::---
+
+PATH: base/b1
+user owner: attic
+group owner: kasse
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+group:kassenpruefer:r-x
+mask::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+group:fsusers:r-x
+group:kassenpruefer:r-x
+mask::rwx
+other::---
+
+PATH: base/b2
+user owner: attic
+group owner: kasse
+access ACL:
+user::rw-
+group::rw-
+group:fsusers:r--
+group:kassenpruefer:r--
+mask::rw-
+other::---
+
+PATH: base/b3
+user owner: alexa
+group owner: kasse
+access ACL:
+user::rw-
+group::rw-
+group:fsusers:r--
+group:kassenpruefer:r--
+mask::rw-
+other::---
+

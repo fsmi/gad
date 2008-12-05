@@ -1,0 +1,56 @@
+#!/usr/bin/python
+# permls - Helper tool for the tests to produce a consistent permission output
+#     against which we can easily diff.
+#
+# Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA.
+
+import os
+import sys
+import stat
+import posix1e
+import pwd
+import grp
+
+def sorted_depthfirst_walk(root, handler):
+    for elem in sorted(os.listdir(root)):
+        elem_path = os.path.join(root, elem)
+        handler(elem_path)
+        if os.path.isdir(elem_path):
+            sorted_depthfirst_walk(os.path.join(root, elem), handler)
+
+def handle_dir_entry(path):
+    print 'PATH:', path
+    si = os.stat(path)
+    print 'user owner: %s' % (pwd.getpwuid(si.st_uid).pw_name)
+    print 'group owner: %s' % (grp.getgrgid(si.st_gid).gr_name)
+    mode = stat.S_IMODE(si.st_mode)
+    if mode & stat.S_ISUID:
+        print 'user sticky bit'
+    if mode & stat.S_ISGID:
+        print 'group sticky bit'
+    if os.path.isdir(path):
+        print 'default ACL:'
+        print posix1e.ACL(filedef = path)
+    print 'access ACL:'
+    print posix1e.ACL(file = path)
+
+def main():
+    handle_dir_entry(sys.argv[1])
+    sorted_depthfirst_walk(sys.argv[1], handle_dir_entry)
+
+if __name__ == '__main__':
+    main()

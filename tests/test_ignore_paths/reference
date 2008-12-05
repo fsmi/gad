@@ -1,0 +1,70 @@
+PATH: base
+user owner: attic
+group owner: adm
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+other::---
+
+PATH: base/b1
+user owner: root
+group owner: users
+default ACL:
+
+access ACL:
+user::rwx
+group::---
+other::---
+
+PATH: base/b1/c1
+user owner: root
+group owner: users
+default ACL:
+
+access ACL:
+user::rwx
+group::---
+other::---
+
+PATH: base/b1/c2
+user owner: root
+group owner: users
+access ACL:
+user::rw-
+group::---
+other::---
+
+PATH: base/b2
+user owner: root
+group owner: users
+default ACL:
+
+access ACL:
+user::rwx
+group::---
+other::---
+
+PATH: base/b2/c1
+user owner: root
+group owner: users
+default ACL:
+
+access ACL:
+user::rwx
+group::---
+other::---
+
+PATH: base/b2/c2
+user owner: root
+group owner: users
+access ACL:
+user::rw-
+group::---
+other::---
+
