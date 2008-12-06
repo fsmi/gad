@@ -1,3 +1,9 @@
+gad (0.4.2-1) fsmi-etch; urgency=low
+
+  * New upstream release.
+
+ -- Fabian Knittel <fabian.knittel@fsmi.uni-karlsruhe.de>  Sat, 06 Dec 2008 13:51:55 +0100
+
 gad (0.4.1-2) fsmi-etch; urgency=low
 
   * Remove cron job. There's no default configuration file, so there shouldn't
