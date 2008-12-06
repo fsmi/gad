@@ -34,3 +34,25 @@ user::rw-
 group::rw-
 other::---
 
+PATH: base/b3
+user owner: fk
+group owner: src
+group sticky bit
+default ACL:
+user::rwx
+group::rwx
+other::---
+
+access ACL:
+user::rwx
+group::rwx
+other::---
+
+PATH: base/b4
+user owner: fk
+group owner: src
+access ACL:
+user::rw-
+group::rw-
+other::---
+
