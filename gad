@@ -3,8 +3,6 @@
 Group accessible directories - Allows a group of users read and/or write
   access to a directory tree, by setting the owners and ACL permissions
   apropriately.
-
-Version 0.4.1
 """
 # Copyright (C) 2008 Fabian Knittel <fabian.knittel@avona.com>
 #
@@ -284,16 +282,16 @@ class BaseAssertPerms(object):
         self.allids = set(self.rids + self.wids + self.xids)
 
     def assert_acl_perms(self, curr_acl):
-        self._filter_ids(curr_acl)
-
-        owner_entry = self._get_owner_entry(curr_acl)
-
-        si = os.stat(curr_acl.path)
-        owner_id = getattr(si, self._STAT_NAME)
-
         # We only add explicit entries for ids that arent' already present
         # as owner entries.
+        si = os.stat(curr_acl.path)
+        owner_id = getattr(si, self._STAT_NAME)
         relevant_ids = self.allids.difference(set([owner_id]))
+
+        # Remove ids not part of the relevant ids.
+        self._filter_ids(curr_acl, relevant_ids)
+
+        owner_entry = self._get_owner_entry(curr_acl)
         for id in relevant_ids:
             perms = []
             # Use the owner's permissions as a permission mask for all others.
@@ -325,8 +323,8 @@ class AssertGroupPerms(BaseAssertPerms):
     def _getidsbyname(self, groups):
         return map(lambda group_name: grp.getgrnam(group_name).gr_gid, groups)
 
-    def _filter_ids(self, curr_acl):
-        curr_acl.filter_groups(self.allids)
+    def _filter_ids(self, curr_acl, ids):
+        curr_acl.filter_groups(ids)
 
     def _get_owner_entry(self, curr_acl):
         return curr_acl.get_group_obj()
@@ -346,8 +344,8 @@ class AssertUserPerms(BaseAssertPerms):
     def _getidsbyname(self, users):
         return map(lambda user_name: pwd.getpwnam(user_name).pw_uid, users)
 
-    def _filter_ids(self, curr_acl):
-        curr_acl.filter_users(self.allids)
+    def _filter_ids(self, curr_acl, ids):
+        curr_acl.filter_users(ids)
 
     def _get_owner_entry(self, curr_acl):
         return curr_acl.get_user_obj()

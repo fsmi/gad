@@ -5,6 +5,8 @@ rm -rf base
 mkdir base
 mkdir base/b1
 touch base/b2
+mkdir base/b3
+touch base/b4
 
 setfacl -bR base
 chmod -R u=rwX,g=,o= base
@@ -12,3 +14,5 @@ chmod -R a-s base
 chown -R root:users base
 setfacl -m u:fk:r base/b1
 setfacl -m g:adm:r base/b2
+setfacl -m g:src:r base/b3
+setfacl -m g:src:r base/b4
