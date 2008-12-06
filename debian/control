@@ -19,5 +19,5 @@ Description: Keep directories accessible by POSIX ACL groups
  reading and writing to the directory. Default ACLs are used to prevent
  participants (e.g. with a strict umask) from unintentionally creating files or
  directories that are not accessible by everyone in the group. To catch corner
- cases where that does not suffice, the script is usually called regularly from
- a cron job.
+ cases where default ACLs do not suffice, it is advisable to run the script
+ from a cron job.
